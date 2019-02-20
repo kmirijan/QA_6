@@ -5,6 +5,7 @@ from qa_engine.score_answers import main as score_answers
 from nltk.stem.wordnet import WordNetLemmatizer
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
+lmtzr = WordNetLemmatizer()
 
 def get_wordnet_pos(treebank_tag):
 
@@ -24,7 +25,6 @@ def norm_question(question):
     quest_words = nltk.pos_tag(quest_words)
     del quest_words[0]
     del quest_words[-1]
-    lmtzr = WordNetLemmatizer()
 
     root_question_words = set()
     for word_pair in quest_words:
@@ -39,7 +39,6 @@ def norm_question(question):
 def norm_text(sent):
     sent_words = nltk.word_tokenize(sent)
     sent_words = nltk.pos_tag(sent_words)
-    lmtzr = WordNetLemmatizer()
 
     root_sent_words = set()
     for word_pair in sent_words:
@@ -90,8 +89,12 @@ def get_answer(question, story):
     answers = []
 
     boqw = norm_question(question['text'])
+    qgraph = question["dep"]
+    qmain = find_main(qgraph)
+    qword = qmain["word"]
+    stem = lmtzr.lemmatize(qword, wordnet.VERB)
+    boqw.add(qword)
     print(question['text'])
-    print(norm_question(question['text']))
 
     text = ''
     if question['type'] == "Story":
@@ -108,13 +111,49 @@ def get_answer(question, story):
         # & is the set intersection operator
         overlap = len(boqw & bosw)
         
-        answers.append((overlap, sent))
+        answers.append((overlap, sent, bosw))
     answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
 
     best_answer = (answers[0])[1]
-    print(best_answer)    
+    second_best_answer = (answers[1])[1]
+    bosw = (answers[0])[2]
+    print(boqw)
+    print(bosw)
+    print(best_answer)
+    print(second_best_answer)
+    print('\n')    
     return best_answer
 
+def find_main(graph):
+    for node in graph.nodes.values():
+        if node['rel'] == 'root':
+            return node
+    return None
+
+def find_node(word, graph):
+    for node in graph.nodes.values():
+        if node["word"] == word:
+            return node
+    return None
+
+def sent_test():
+    driver = QABase()
+    q = driver.get_question("mc500.train.0.10")
+    story = driver.get_story(q["sid"])
+
+    qgraph = q["dep"]
+    qmain = find_main(qgraph)
+    qword = qmain["word"]
+    qset = set()
+    for node in qgraph.nodes.values():
+        if node['word'] not in stopwords or node['word'] == qword:
+            qset.add(node['lemma'])
+    print(qset)
+    print(len(qgraph))
+            
+
+    print(qword)
+    story_graphs = story["story_dep"]
 
 
 #############################################################
@@ -136,10 +175,11 @@ def run_qa():
 
 
 def main():
-    run_qa()
+    sent_test()
+    #run_qa()
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-    score_answers()
+    #score_answers()
 
 if __name__ == "__main__":
     main()
