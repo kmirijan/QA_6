@@ -1,0 +1,37 @@
+Goes over the assignemnt PDF.
+Every question NEEDS an answer. No question ommiting
+
+Main focus for this assignment is good Recall (aka Sentence Selection)
+Lesser focus, but still important is precision refinement.
+Asg 7 and 8 are completely buiilt off this one. Similiar to Asg 6, just harder questions
+
+baseline.py effectively gets a set of words for the question and each sentence.
+Loops through sentences to see the most overlap between the question and sentence.
+Highest overlap is the answer
+
+Increasing precision: Using chunk-demo.py
+Uses assumption that verb and subject are found from the question, given in this file
+A lot of the work is being done in the find_candidates and find_locations
+At the end, it takes the leaves of the subtree as the peice of the answer. It's kind of confusing.
+Multiple candidates means we need to figure out which candifate is best
+The GRAMMER specified at the top and LOC_PP means that this really only words for location questions.
+Good for 'Where' Qs, not good for Who/What/When/Why...
+
+The constituency parse demo is also all about Precision
+Assumption: We have the right sentence
+Also specified as location based question with pattern "(VP (*) (PP))"
+
+
+Dependency parse:
+Starts by dumping the tree
+Assumption: Have the right sentence
+Bulk of work in find_answer
+Remeber back in chunk-demo where we assumed verb and subject?
+In find_main, it finds that verb
+I think find_node and get_dependents will get relevant rest of answer?
+rel == nmod, that is the part that changes per question.
+
+Only expected to look at baseline and chunking for this assignment.
+
+If we use the STANFORD modules instead of NLTK we will probably get better results
+
