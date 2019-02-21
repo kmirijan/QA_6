@@ -1,4 +1,4 @@
-import sys, nltk, operator
+import re, sys, nltk, operator
 from nltk.corpus import wordnet
 from qa_engine.base import QABase
 from qa_engine.score_answers import main as score_answers
@@ -6,6 +6,20 @@ from nltk.stem.wordnet import WordNetLemmatizer
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
 lmtzr = WordNetLemmatizer()
+
+# Our simple grammar from class (and the book)
+GRAMMAR =   """
+            N: {<PRP>|<NN.*>}
+            V: {<V.*>}
+            ADJ: {<JJ.*>}
+            NP: {<DT>? <ADJ>* <N>+}
+            PP: {<IN> <NP>}
+            VP: {<TO>? <V> (<NP>|<PP>)*}
+            """
+
+LOC_PP = set(["in", "on", "at"])
+
+
 
 def get_wordnet_pos(treebank_tag):
 
@@ -87,21 +101,59 @@ def get_answer(question, story):
     ###     Your Code Goes Here         ###
     answers = []
 
+    print("story")
+    print(story)
+    
+    #question is an object
+    print("Question: ", question["text"])
     boqw = norm_question(question['text'])
     qgraph = question["dep"]
     qmain = find_main(qgraph)
     #root word
+    #AKA verb
     qword = qmain["word"]
+    print("QWORD")
+    print(qword)    
+    
     stem = lmtzr.lemmatize(qword, wordnet.VERB)
     boqw.add(qword)
-    print(question['text'])
+
+    print("-----STORY------")
+    print(story['text'])
 
     text = ''
-    if question['type'] == "Story":
-        text = story['text']
-    else:
+    if question['type'] == "sch":
+        print("Question type is sch")
         text = story['sch']
+#        print(text)
+        sgraph = story["sch_dep"][1]
+    else:
+        print("Question type is Story")
+        text = story['text']
+#        print(text)
+        sgraph = story["story_dep"][1]
 
+    print(sgraph)
+    snode = find_node(qword, sgraph)
+    print("snode")
+    print(snode)
+
+    for node in sgraph.nodes.values():
+        print("node[head]=", node["head"])
+        if node.get('head', None) == snode["address"]:
+            print("word, relation")
+            print(node["word"], node["rel"])
+            """
+            if node['rel'] == "nmod":
+                deps = get_dependents(node, sgraph)
+                deps = sorted(deps+[node], key=operator.itemgetter("address"))
+
+                return " ".join(dep["word"] for dep in deps)
+            """
+
+
+
+    """
     sentences = nltk.sent_tokenize(text)
     for sent in sentences:
         # A list of all the word tokens in the sentence
@@ -114,17 +166,16 @@ def get_answer(question, story):
         
     answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
     
-    """
-    #parse through answers
-    for i in answers:
-        print(i)
-    """
 
     best_answer = (answers[0])[1]
     second_best_answer = (answers[1])[1]
     bosw = (answers[0])[2]
-    print("Best answer: ", best_answer)
-    print("Second best answer: ",second_best_answer)
+    print("bosw")
+    print(bosw)
+    print("boqw")
+    print(boqw)
+#    print("Best answer: ", best_answer)
+#    print("Second best answer: ",second_best_answer)
 
     #get overlap values for top two answers
     max_overlap = answers[0][0]
@@ -138,37 +189,55 @@ def get_answer(question, story):
 
     print('\n')    
     return best_answer
+    """
 
+
+#Finds the verb
 def find_main(graph):
     for node in graph.nodes.values():
         if node['rel'] == 'root':
             return node
     return None
 
+
 def find_node(word, graph):
+    print("Find node of --", word)
     for node in graph.nodes.values():
         if node["word"] == word:
+            print("Found {} at {}".format(word, node))
             return node
     return None
 
+
 def sent_test():
+    print("In sent_test()")
     driver = QABase()
     q = driver.get_question("mc500.train.0.10")
     story = driver.get_story(q["sid"])
 
+    #get the dependency graph of the firrst question
     qgraph = q["dep"]
+    #print("qgraph:", qgraph)
+
+    # The answer is in the second sentence
+    # You would have to figure this out like in the chunking demo
+
+    #sch_dep is dependency parses of Scherherrazade
+    #sgraph = story["sch_dep"][1]
+    story_graphs = story["story_dep"]
+
+    #goes to find the verb
     qmain = find_main(qgraph)
     qword = qmain["word"]
+    qpar = q['parse']
+    print(qpar)
     qset = set()
     for node in qgraph.nodes.values():
         if node['word'] not in stopwords or node['word'] == qword:
             qset.add(node['lemma'])
     print(qset)
     #print(len(qgraph))
-            
 
-#    print(qword)
-    story_graphs = story["story_dep"]
 
 
 #############################################################
@@ -178,6 +247,7 @@ class QAEngine(QABase):
     @staticmethod
     def answer_question(question, story):
         answer = get_answer(question, story)
+
         return answer
 
 
@@ -189,9 +259,10 @@ def run_qa():
 #############################################################
 
 
-def main():
+def main():    
+
     sent_test()
-    run_qa()
+    #run_qa()
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     #score_answers()
