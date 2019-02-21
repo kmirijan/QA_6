@@ -119,10 +119,10 @@ def get_answer(question, story):
 
     text = ''
     
-    if question['type'] == "Story":
-        text = story['text']
-    else:
+    if question['type'] == "Sch":
         text = story['sch']
+    else:
+        text = story['text']
 
     sentences = nltk.sent_tokenize(text)
     for sent in sentences:
