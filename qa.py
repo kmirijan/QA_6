@@ -139,8 +139,10 @@ def get_answer(question, story):
     
     if question['type'] == "Sch":
         text = story['sch']
+        s_type = 'sch_dep'
     else:
         text = story['text']
+        s_type = 'story_dep'
 
     sentences = nltk.sent_tokenize(text)
     for sent in sentences:
@@ -171,12 +173,14 @@ def get_answer(question, story):
     print(best_answer)
     print('\n')  
     question = question["text"]  
+    
     if "where" in question.lower():
         candidate_sent = get_sentences(best_answer)
         chunker = nltk.RegexpParser(GRAMMAR)
         locations = find_candidates(candidate_sent, chunker)
         for loc in locations:
             best_answer = " ".join([token[0] for token in loc.leaves()])
+    
     if "why" in question.lower():
         print("-----FOUND WHY-------")
         candidate_sent = get_sentences(best_answer)
@@ -185,6 +189,16 @@ def get_answer(question, story):
                 if pair[0] == "because":
                     sent_split = sent[index:]
                     best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
+    
+    if 'who' in question.lower():
+        sgraph = story[s_type][sentences.index(best_answer)]
+        sword  = find_main(sgraph)['lemma']
+        node   = find_node(qword, sgraph)
+
+        if node != None:
+            best_answer = best_answer[:best_answer.index(node['word'])]
+        else:
+            pass
     
     return best_answer
 
@@ -196,8 +210,9 @@ def find_main(graph):
 
 def find_node(word, graph):
     for node in graph.nodes.values():
-        if node["word"] == word:
-            return node
+        if node['word'] != None:
+            if lmtzr.lemmatize(node["word"], get_wordnet_pos(node["tag"])) == word:
+                return node
     return None
 
 def pp_filter(subtree):
