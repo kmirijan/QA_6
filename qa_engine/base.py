@@ -4,16 +4,17 @@ from nltk.parse import DependencyGraph
 from nltk.tree import Tree
 from collections import defaultdict
 
+HW = 7
 DATA_DIR = "data/"
-QUESTION_FILE = "hw6-questions.tsv"
-ANSWER_FILE = "hw6-answers.tsv"
-STORIES_FILE = "hw6-stories.tsv"
+QUESTION_FILE = "hw{}-questions.tsv".format(HW)
+ANSWER_FILE = "hw{}-answers.tsv".format(HW)
+STORIES_FILE = "hw{}-stories.tsv".format(HW)
 
-RESPONSE_FILE = "hw6-responses.tsv"
-EVAL_RESPONSE_FILE = "hw6-eval-responses.tsv"
+RESPONSE_FILE = "hw{}-responses.tsv".format(HW)
+EVAL_RESPONSE_FILE = "hw{}-eval-responses.tsv".format(HW)
 
-EVAL_QUESTIONS = "hw6-eval-questions.tsv"
-EVAL_STORIES = "hw6-eval-stories.tsv"
+EVAL_QUESTIONS = "hw{}-eval-questions.tsv".format(HW)
+EVAL_STORIES = "hw{}-eval-stories.tsv".format(HW)
 
 
 import math

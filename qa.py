@@ -316,7 +316,7 @@ def run_qa(evaluate=False):
 
 def main():
     #sent_test()
-    run_qa(evaluate=True)
+    run_qa(evaluate=False)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     score_answers()
