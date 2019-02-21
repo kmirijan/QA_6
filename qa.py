@@ -202,8 +202,8 @@ class QAEngine(QABase):
         return answer
 
 
-def run_qa():
-    QA = QAEngine()
+def run_qa(evaluate=False):
+    QA = QAEngine(evaluate=evaluate)
     QA.run()
     QA.save_answers()
 
@@ -212,7 +212,7 @@ def run_qa():
 
 def main():
     #sent_test()
-    run_qa()
+    run_qa(evaluate=True)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     score_answers()
