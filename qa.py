@@ -131,9 +131,9 @@ def get_answer(question, story):
     answers = []
 
     boqw, qword = norm_question(question)
-    print(question['text'])
-    print(boqw)
-    print(qword)
+    # print(question['text'])
+    # print(boqw)
+    # print(qword)
 
     text = ''
     
@@ -169,9 +169,9 @@ def get_answer(question, story):
     if best_answer == '':
         best_answer = default_answer
 
-    print(question['qid'])
-    print(best_answer)
-    print('\n')  
+    # print(question['qid'])
+    # print(best_answer)
+    # print('\n')  
     question = question["text"]  
     
     if "where" in question.lower():
@@ -182,7 +182,7 @@ def get_answer(question, story):
             best_answer = " ".join([token[0] for token in loc.leaves()])
     
     if "why" in question.lower():
-        print("-----FOUND WHY-------")
+        # print("-----FOUND WHY-------")
         candidate_sent = get_sentences(best_answer)
         for sent in candidate_sent:
             for index,pair in enumerate(sent):
