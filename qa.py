@@ -191,13 +191,17 @@ def get_answer(question, story):
                     best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
     
     if 'who' in question.lower():
-        sgraph = story[s_type][sentences.index(best_answer)]
-        sword  = find_main(sgraph)['lemma']
-        node   = find_node(qword, sgraph)
+        # print(best_answer)
+        try:
+            sgraph = story[s_type][sentences.index(best_answer)]
+            sword  = find_main(sgraph)['lemma']
+            node   = find_node(qword, sgraph)
 
-        if node != None:
-            best_answer = best_answer[:best_answer.index(node['word'])]
-        else:
+            if node != None:
+                best_answer = best_answer[:best_answer.index(node['word'])]
+            else:
+                pass
+        except:
             pass
     
     return best_answer
@@ -312,7 +316,7 @@ def run_qa(evaluate=False):
 
 def main():
     #sent_test()
-    run_qa(evaluate=False)
+    run_qa(evaluate=True)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     score_answers()
