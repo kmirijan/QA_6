@@ -16,7 +16,7 @@ GRAMMAR =   """
             VP: {<TO>? <V> (<NP>|<PP>)*}
             """
 
-LOC_PP = set(["in", "on", "at", "along","under", "around"])
+LOC_PP = set(["in", "on", "at", "along","under", "around","near","to","in front of"])
 
 def get_sentences(text):
     sentences = nltk.sent_tokenize(text)
@@ -169,26 +169,23 @@ def get_answer(question, story):
 
     print(question['qid'])
     print(best_answer)
-    print('\n')    
-    if "Where" in question["text"] or "where" in question["text"]:
-        #print("-----WHERE IS FOUND-----")
+    print('\n')  
+    question = question["text"]  
+    if "where" in question.lower():
         candidate_sent = get_sentences(best_answer)
-        #print(candidate_sent)
-
         chunker = nltk.RegexpParser(GRAMMAR)
         locations = find_candidates(candidate_sent, chunker)
-        #print("location candidates")
-        #print(locations)        
-        # Print them out
         for loc in locations:
-            #print(loc)
             best_answer = " ".join([token[0] for token in loc.leaves()])
-            #print("where best answer")
-            #print(best_answer)
-            #print(" ".join([token[0] for token in loc.leaves()]))
-#    spar = story["story_par"]
-#    print(spar[1])
-
+    if "why" in question.lower():
+        print("-----FOUND WHY-------")
+        candidate_sent = get_sentences(best_answer)
+        for sent in candidate_sent:
+            for index,pair in enumerate(sent):
+                if pair[0] == "because":
+                    sent_split = sent[index:]
+                    best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
+    
     return best_answer
 
 def find_main(graph):
@@ -234,7 +231,6 @@ def find_candidates(sentences, chunker):
     candidates = []
     for sent in sentences:
         tree = chunker.parse(sent)
-        print(tree)
         locations = find_locations(tree)
         candidates.extend(locations)
 
