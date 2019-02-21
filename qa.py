@@ -16,6 +16,8 @@ GRAMMAR =   """
             VP: {<TO>? <V> (<NP>|<PP>)*}
             """
 
+LOC_PP = set(["in", "on", "at", "along","under", "around"])
+
 def get_sentences(text):
     sentences = nltk.sent_tokenize(text)
     sentences = [nltk.word_tokenize(sent) for sent in sentences]
@@ -151,7 +153,6 @@ def get_answer(question, story):
         
         answers.append((overlap, sent, bosw))
     answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
-
     default_answer = (answers[0])[1]
     max_overlap = (answers[0])[0]
     best_answer = ''
@@ -166,11 +167,27 @@ def get_answer(question, story):
     if best_answer == '':
         best_answer = default_answer
 
-
-
     print(question['qid'])
     print(best_answer)
     print('\n')    
+    if "Where" in question["text"] or "where" in question["text"]:
+        #print("-----WHERE IS FOUND-----")
+        candidate_sent = get_sentences(best_answer)
+        #print(candidate_sent)
+
+        chunker = nltk.RegexpParser(GRAMMAR)
+        locations = find_candidates(candidate_sent, chunker)
+        #print("location candidates")
+        #print(locations)        
+        # Print them out
+        for loc in locations:
+            #print(loc)
+            best_answer = " ".join([token[0] for token in loc.leaves()])
+            #print("where best answer")
+            #print(best_answer)
+            #print(" ".join([token[0] for token in loc.leaves()]))
+#    spar = story["story_par"]
+#    print(spar[1])
 
     return best_answer
 
@@ -185,6 +202,43 @@ def find_node(word, graph):
         if node["word"] == word:
             return node
     return None
+
+def pp_filter(subtree):
+    return subtree.label() == "PP"
+
+def is_location(prep):
+    return prep[0] in LOC_PP
+
+
+def find_locations(tree):
+    # Starting at the root of the tree
+    # Traverse each node and get the subtree underneath it
+    # Filter out any subtrees who's label is not a PP
+    # Then check to see if the first child (it must be a preposition) is in
+    # our set of locative markers
+    # If it is then add it to our list of candidate locations
+
+    # How do we modify this to return only the NP: add [1] to subtree!
+    # How can we make this function more robust?
+    # Make sure the crow/subj is to the left
+    locations = []
+    for subtree in tree.subtrees(filter=pp_filter):
+        if is_location(subtree[0]):
+            locations.append(subtree)
+
+    return locations
+
+
+
+def find_candidates(sentences, chunker):
+    candidates = []
+    for sent in sentences:
+        tree = chunker.parse(sent)
+        print(tree)
+        locations = find_locations(tree)
+        candidates.extend(locations)
+
+    return candidates
 
 def sent_test():
     driver = QABase()
@@ -203,19 +257,29 @@ def sent_test():
             
 
     sgraph = story["sch_dep"]
-
+    spar = story["story_par"]
+    print(spar)
     given_sent =  "A Crow was sitting on a branch of a tree with a piece of cheese in her beak when a Fox observed her and set his wits to work to discover some way of getting the cheese."
     candidate_sent = get_sentences(given_sent)
     print(candidate_sent)
     print(qmain)
-
-    chunker = nltk.RegexpParser(GRAMMAR)
     
+    chunker = nltk.RegexpParser(GRAMMAR)
+    locations = find_candidates(candidate_sent, chunker)
+    #print("location candidates")
+    #print(locations)        
+     # Print them out
+
+    for loc in locations:
+        print(loc)
+        print(" ".join([token[0] for token in loc.leaves()]))
+
+    """
     for sent in candidate_sent:
         tree = chunker.parse(sent)
         print(tree)
     # print(sgraph[0])
-
+    """
 
 #############################################################
 ###     Dont change the code in this section
@@ -236,11 +300,11 @@ def run_qa(evaluate=False):
 
 
 def main():
-    sent_test()
-    # run_qa(evaluate=True)
+    #sent_test()
+    run_qa(evaluate=False)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-    #score_answers()
+    score_answers()
 
 if __name__ == "__main__":
     main()
