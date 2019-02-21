@@ -16,7 +16,7 @@ GRAMMAR =   """
             VP: {<TO>? <V> (<NP>|<PP>)*}
             """
 
-LOC_PP = set(["in", "on", "at", "along","under", "around","near","to","in front of"])
+LOC_PP = set(["in", "from","on", "at", "along","under", "around","near","to","in front of"])
 
 def get_sentences(text):
     sentences = nltk.sent_tokenize(text)
