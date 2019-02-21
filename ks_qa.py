@@ -85,7 +85,6 @@ def get_answer(question, story):
 
     """
     ###     Your Code Goes Here         ###
-    print("IN GET ANSWER")
     answers = []
 
     boqw = norm_question(question['text'])
@@ -93,8 +92,6 @@ def get_answer(question, story):
     qmain = find_main(qgraph)
     #root word
     qword = qmain["word"]
-    print("-----ROOT WORD----")
-    print(qword)
     stem = lmtzr.lemmatize(qword, wordnet.VERB)
     boqw.add(qword)
     print(question['text'])
@@ -113,14 +110,16 @@ def get_answer(question, story):
         # Count the # of overlapping words between the Q and the A
         # & is the set intersection operator
         overlap = len(boqw & bosw)
-
-        print("overlap: ", overlap)
-    
         answers.append((overlap, sent, bosw))
         
     answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
+    
+    """
+    #parse through answers
     for i in answers:
         print(i)
+    """
+
     best_answer = (answers[0])[1]
     second_best_answer = (answers[1])[1]
     bosw = (answers[0])[2]
@@ -168,7 +167,7 @@ def sent_test():
     #print(len(qgraph))
             
 
-    print(qword)
+#    print(qword)
     story_graphs = story["story_dep"]
 
 
