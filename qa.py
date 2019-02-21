@@ -7,6 +7,22 @@ from nltk.stem.wordnet import WordNetLemmatizer
 stopwords = set(nltk.corpus.stopwords.words("english"))
 lmtzr = WordNetLemmatizer()
 
+GRAMMAR =   """
+            N: {<PRP>|<NN.*>}
+            V: {<V.*>}
+            ADJ: {<JJ.*>}
+            NP: {<DT>? <ADJ>* <N>+}
+            PP: {<IN> <NP>}
+            VP: {<TO>? <V> (<NP>|<PP>)*}
+            """
+
+def get_sentences(text):
+    sentences = nltk.sent_tokenize(text)
+    sentences = [nltk.word_tokenize(sent) for sent in sentences]
+    sentences = [nltk.pos_tag(sent) for sent in sentences]
+    
+    return sentences    
+
 def get_wordnet_pos(treebank_tag):
 
     if treebank_tag.startswith('J'):
@@ -152,10 +168,8 @@ def get_answer(question, story):
 
 
 
-    second_best_answer = (answers[1])[1]
     print(question['qid'])
     print(best_answer)
-    print(second_best_answer)
     print('\n')    
 
     return best_answer
@@ -174,22 +188,33 @@ def find_node(word, graph):
 
 def sent_test():
     driver = QABase()
-    q = driver.get_question("fables-02-4")
+    q = driver.get_question("fables-01-2")
     story = driver.get_story(q["sid"])
 
     qgraph = q["dep"]
+    qpar = q['par']
     qmain = find_main(qgraph)
     qword = qmain["word"]
-    qset = set()
-    for node in qgraph.nodes.values():
-        if node['word'] not in stopwords or node['word'] == qword:
-            if node['address'] != 0 and node['address'] != 1 and node['rel'] != 'punct':
-                qset.add(node['lemma'])
+    # qset = set()
+    # for node in qgraph.nodes.values():
+    #     if node['word'] not in stopwords or node['word'] == qword:
+    #         if node['address'] != 0 and node['address'] != 1 and node['rel'] != 'punct':
+    #             qset.add(node['lemma'])
             
 
     sgraph = story["sch_dep"]
-    print(qgraph)
-    print(sgraph[1])
+
+    given_sent =  "A Crow was sitting on a branch of a tree with a piece of cheese in her beak when a Fox observed her and set his wits to work to discover some way of getting the cheese."
+    candidate_sent = get_sentences(given_sent)
+    print(candidate_sent)
+    print(qmain)
+
+    chunker = nltk.RegexpParser(GRAMMAR)
+    
+    for sent in candidate_sent:
+        tree = chunker.parse(sent)
+        print(tree)
+    # print(sgraph[0])
 
 
 #############################################################
@@ -211,11 +236,11 @@ def run_qa(evaluate=False):
 
 
 def main():
-    #sent_test()
-    run_qa(evaluate=True)
+    sent_test()
+    # run_qa(evaluate=True)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-    score_answers()
+    #score_answers()
 
 if __name__ == "__main__":
     main()
