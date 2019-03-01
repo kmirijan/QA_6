@@ -41,7 +41,8 @@ def get_wordnet_pos(treebank_tag):
 def norm_question(question):
     quest_words = nltk.word_tokenize(question['text'])
     quest_words = nltk.pos_tag(quest_words)
-    
+
+    start_word = quest_words[0][0]
     del quest_words[0]
     del quest_words[-1]
 
@@ -50,8 +51,12 @@ def norm_question(question):
     # Adds the root word to troot_question_words
     qgraph = question["dep"]
     qword = find_main(qgraph)['lemma']
-    root_question_words.add(qword)
-    
+    if(qword != start_word.lower()):
+        qverbs = wordnet._morphy(qword, wordnet.VERB)
+        root_question_words.add(qword)
+        for qverb in qverbs:
+            root_question_words.add(qverb)
+        
     for word_pair in quest_words:
         if word_pair[0] not in stopwords:
             word = word_pair[0].lower()
@@ -59,6 +64,8 @@ def norm_question(question):
             
             #Added in morphy function and added stems to root_question_words
             stems = wordnet._morphy(word, tag)
+            if not stems:
+                stems.append(word)
             [root_question_words.add(stem) for stem in stems]
             if word_pair[1] == 'NNP':
                 root_question_words.add(word)
@@ -72,11 +79,10 @@ def norm_text(sent):
     root_sent_words = set()
 
     for word_pair in sent_words:
-        
         # If the word is a Verb, then add the word to root_sent_words
         if (word_pair[1].startswith('V')):
+            words = wordnet._morphy(word_pair[0].lower(), wordnet.VERB)
             [root_sent_words.add(word) for word in wordnet._morphy(word_pair[0].lower(), wordnet.VERB)]
-            continue
 
         if word_pair[0] not in stopwords:
             word = word_pair[0].lower()
@@ -84,6 +90,8 @@ def norm_text(sent):
             
             #Added in morphy function and added stems to root_question_words
             stems = wordnet._morphy(word, tag)
+            if not stems:
+                stems.append(word)
             [root_sent_words.add(stem) for stem in stems]
             if word_pair[1] == 'NNP':
                 root_sent_words.add(word)
@@ -98,6 +106,62 @@ def get_question_words(qgraph, qword):
             if node['address'] != 0 and node['address'] != 1 and node['rel'] != 'punct':
                 qset.add(node['lemma'])
     return qset
+
+def select_sentence(question, story):
+    answers = []
+
+    boqw, qword = norm_question(question)
+    qgraph = question["dep"]
+    qsubj = find_nsubj(qgraph)
+    if qsubj is not None:
+        qsubj = qsubj["lemma"]
+    # print(question['text'])
+    # print(boqw)
+    # print(qword)
+
+    text = ''
+    
+    if question['type'] == "Story" or question['type'] == "Story|Sch":
+        text = story['text']
+        s_type = 'story_dep'
+    elif question['type'] == "Sch" or question['type'] == "Sch|Story":
+        text = story['sch']
+        s_type = 'sch_dep'
+    else:
+        text = story['text']
+        s_type = 'story_dep'
+
+    sentences = nltk.sent_tokenize(text)
+    for sent in sentences:
+        # A list of all the word tokens in the sentence
+        bosw = norm_text(sent)
+        
+        # Count the # of overlapping words between the Q and the A
+        # & is the set intersection operator
+        overlap = len(boqw & bosw)
+        
+        answers.append((overlap, sent, bosw))
+    answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
+    default_answer = (answers[0])[1]
+    max_overlap = (answers[0])[0]
+    best_answer = ''
+
+    for answer in answers:
+        if answer[0] == max_overlap:
+            ssubj = find_nsubj(story[s_type][sentences.index(answer[1])])
+            if(ssubj is not None):
+                ssubj = ssubj["lemma"]
+            if qword in answer[2] and qsubj == ssubj:
+                best_answer = set_best_answer(best_answer, answer)
+            elif qword in answer[2]:
+                best_answer = set_best_answer(best_answer, answer)
+            elif qsubj == ssubj:
+                best_answer = set_best_answer(best_answer, answer)
+
+    if best_answer == '':
+        best_answer = default_answer
+
+    return best_answer
 
 def get_answer(question, story):
     """
@@ -127,88 +191,51 @@ def get_answer(question, story):
         sid --  the story id
     """
     ###     Your Code Goes Here         ###
+    best_answer = select_sentence(question, story)
 
-    answers = []
-
-    boqw, qword = norm_question(question)
-    # print(question['text'])
-    # print(boqw)
-    # print(qword)
-
-    text = ''
-    
-    if question['type'] == "Sch":
-        text = story['sch']
-        s_type = 'sch_dep'
-    else:
-        text = story['text']
-        s_type = 'story_dep'
-
-    sentences = nltk.sent_tokenize(text)
-    for sent in sentences:
-        # A list of all the word tokens in the sentence
-        bosw = norm_text(sent)
-        
-        # Count the # of overlapping words between the Q and the A
-        # & is the set intersection operator
-        overlap = len(boqw & bosw)
-        
-        answers.append((overlap, sent, bosw))
-    answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
-    default_answer = (answers[0])[1]
-    max_overlap = (answers[0])[0]
-    best_answer = ''
-
-    for answer in answers:
-        if answer[0] == max_overlap and qword in answer[2]:
-            if best_answer == '':
-                best_answer = answer[1]
-            else:
-                best_answer = best_answer + ' ' + answer[1]
-
-    if best_answer == '':
-        best_answer = default_answer
-
-    # print(question['qid'])
-    # print(best_answer)
-    # print('\n')  
     question = question["text"]  
     
-    if "where" in question.lower():
-        candidate_sent = get_sentences(best_answer)
-        chunker = nltk.RegexpParser(GRAMMAR)
-        locations = find_candidates(candidate_sent, chunker)
-        for loc in locations:
-            best_answer = " ".join([token[0] for token in loc.leaves()])
+    # if "where" in question.lower():
+    #     candidate_sent = get_sentences(best_answer)
+    #     chunker = nltk.RegexpParser(GRAMMAR)
+    #     locations = find_candidates(candidate_sent, chunker)
+    #     for loc in locations:
+    #         best_answer = " ".join([token[0] for token in loc.leaves()])
     
-    if "why" in question.lower():
-        # print("-----FOUND WHY-------")
-        candidate_sent = get_sentences(best_answer)
-        for sent in candidate_sent:
-            for index,pair in enumerate(sent):
-                if pair[0] == "because":
-                    sent_split = sent[index:]
-                    best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
+    # if "why" in question.lower():
+    #     # print("-----FOUND WHY-------")
+    #     candidate_sent = get_sentences(best_answer)
+    #     for sent in candidate_sent:
+    #         for index,pair in enumerate(sent):
+    #             if pair[0] == "because":
+    #                 sent_split = sent[index:]
+    #                 best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
     
-    if 'who' in question.lower():
-        # print(best_answer)
-        try:
-            sgraph = story[s_type][sentences.index(best_answer)]
-            sword  = find_main(sgraph)['lemma']
-            node   = find_node(qword, sgraph)
+    # if 'who' in question.lower():
+    #     # print(best_answer)
+    #     try:
+    #         sgraph = story[s_type][sentences.index(best_answer)]
+    #         sword  = find_main(sgraph)['lemma']
+    #         node   = find_node(qword, sgraph)
 
-            if node != None:
-                best_answer = best_answer[:best_answer.index(node['word'])]
-            else:
-                pass
-        except:
-            pass
+    #         if node != None:
+    #             best_answer = best_answer[:best_answer.index(node['word'])]
+    #         else:
+    #             pass
+    #     except:
+    #         pass
     
     return best_answer
 
 def find_main(graph):
     for node in graph.nodes.values():
         if node['rel'] == 'root':
+            return node
+    return None
+
+def find_nsubj(graph):
+    for node in graph.nodes.values():
+        if node['rel'] == 'nsubj':
             return node
     return None
 
@@ -244,7 +271,12 @@ def find_locations(tree):
 
     return locations
 
-
+def set_best_answer(best_answer, answer):
+    if best_answer == '':
+        best_answer = answer[1]
+    else:
+        best_answer = best_answer + ' ' + answer[1]
+    return best_answer
 
 def find_candidates(sentences, chunker):
     candidates = []
@@ -257,37 +289,79 @@ def find_candidates(sentences, chunker):
 
 def sent_test():
     driver = QABase()
-    q = driver.get_question("fables-01-2")
+    q = driver.get_question("mc500.train.23.17")
     story = driver.get_story(q["sid"])
 
     qgraph = q["dep"]
-    qpar = q['par']
-    qmain = find_main(qgraph)
-    qword = qmain["word"]
+    # qpar = q['par']
+    # qmain = find_main(qgraph)
+    # qword = qmain["word"]
     # qset = set()
     # for node in qgraph.nodes.values():
     #     if node['word'] not in stopwords or node['word'] == qword:
     #         if node['address'] != 0 and node['address'] != 1 and node['rel'] != 'punct':
     #             qset.add(node['lemma'])
             
-
-    sgraph = story["sch_dep"]
-    spar = story["story_par"]
-    print(spar)
-    given_sent =  "A Crow was sitting on a branch of a tree with a piece of cheese in her beak when a Fox observed her and set his wits to work to discover some way of getting the cheese."
-    candidate_sent = get_sentences(given_sent)
-    print(candidate_sent)
-    print(qmain)
+    given_sent =  'Andrew looked outside the window and saw the newspaper by the door.'
     
-    chunker = nltk.RegexpParser(GRAMMAR)
-    locations = find_candidates(candidate_sent, chunker)
-    #print("location candidates")
-    #print(locations)        
-     # Print them out
+    answers = []
+    boqw, qword = norm_question(q)
+    qsubj = find_nsubj(qgraph)["lemma"]
 
-    for loc in locations:
-        print(loc)
-        print(" ".join([token[0] for token in loc.leaves()]))
+    if q['type'] == "Story" or q['type'] == "Story|Sch":
+        text = story['text']
+        s_type = 'story_dep'
+    elif q['type'] == "Sch" or q['type'] == "Sch|Story":
+        text = story['sch']
+        s_type = 'sch_dep'
+
+    sentences = nltk.sent_tokenize(text)
+    for sent in sentences:
+        # A list of all the word tokens in the sentence
+        bosw = norm_text(sent)
+        
+        # Count the # of overlapping words between the Q and the A
+        # & is the set intersection operator
+        overlap = len(boqw & bosw)
+        
+        answers.append((overlap, sent, bosw))
+    answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
+    default_answer = (answers[0])[1]
+    max_overlap = (answers[0])[0]
+    best_answer = ''
+
+    for answer in answers:
+        if answer[0] == max_overlap:
+            ssubj = find_nsubj(story[s_type][sentences.index(answer[1])])["lemma"]
+            if qword in answer[2] and qsubj == ssubj:
+                best_answer = set_best_answer(best_answer, answer)
+            elif qword in answer[2]:
+                best_answer = set_best_answer(best_answer, answer)
+            elif qsubj == ssubj:
+                best_answer = set_best_answer(best_answer, answer)
+                
+    if best_answer == '':
+        best_answer = default_answer
+
+    # bgraph = story[s_type][sentences.index(best_answer)]
+    # ggraph = story[s_type][sentences.index(given_sent)]
+
+    print(q["text"])
+    print(qword)
+    print(boqw)
+    print(best_answer)
+    print(norm_text(best_answer))
+    print(len(boqw & norm_text(best_answer)))
+    print(given_sent)
+    print(norm_text(given_sent))
+    print(len(boqw & norm_text(given_sent)))
+
+    # print(qgraph)
+    # print(bgraph)
+    # print(ggraph)
+    # print(text)
+
+
 
     """
     for sent in candidate_sent:
@@ -315,11 +389,11 @@ def run_qa(evaluate=False):
 
 
 def main():
-    #sent_test()
-    run_qa(evaluate=False)
+    sent_test()
+    #run_qa(evaluate=False)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-    score_answers()
+    #score_answers()
 
 if __name__ == "__main__":
     main()
