@@ -163,6 +163,19 @@ def select_sentence(question, story):
 
     return best_answer
 
+def parse_yes_no(question, best_answer):
+    best_answer = 'yes'
+    return best_answer
+
+def parse_where(question, best_answer):
+    candidate_sent = get_sentences(best_answer)
+    chunker = nltk.RegexpParser(GRAMMAR)
+    locations = find_candidates(candidate_sent, chunker)
+    for loc in locations:
+        best_answer = " ".join([token[0] for token in loc.leaves()])
+
+    return best_answer
+
 def get_answer(question, story):
     """
     :param question: dict
@@ -193,37 +206,42 @@ def get_answer(question, story):
     ###     Your Code Goes Here         ###
     best_answer = select_sentence(question, story)
 
-    question = question["text"]  
-    
-    # if "where" in question.lower():
-    #     candidate_sent = get_sentences(best_answer)
-    #     chunker = nltk.RegexpParser(GRAMMAR)
-    #     locations = find_candidates(candidate_sent, chunker)
-    #     for loc in locations:
-    #         best_answer = " ".join([token[0] for token in loc.leaves()])
-    
-    # if "why" in question.lower():
-    #     # print("-----FOUND WHY-------")
-    #     candidate_sent = get_sentences(best_answer)
-    #     for sent in candidate_sent:
-    #         for index,pair in enumerate(sent):
-    #             if pair[0] == "because":
-    #                 sent_split = sent[index:]
-    #                 best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
-    
-    # if 'who' in question.lower():
-    #     # print(best_answer)
-    #     try:
-    #         sgraph = story[s_type][sentences.index(best_answer)]
-    #         sword  = find_main(sgraph)['lemma']
-    #         node   = find_node(qword, sgraph)
+    question = question["text"]
+    question_words = nltk.word_tokenize(question)
 
-    #         if node != None:
-    #             best_answer = best_answer[:best_answer.index(node['word'])]
-    #         else:
-    #             pass
-    #     except:
-    #         pass
+    if question_words[0] == "Did" or question_words[0].lower == "Had":
+        best_answer = parse_yes_no(question, best_answer)
+
+    if question_words[0] == "Where":
+        # candidate_sent = get_sentences(best_answer)
+        # chunker = nltk.RegexpParser(GRAMMAR)
+        # locations = find_candidates(candidate_sent, chunker)
+        # for loc in locations:
+        #     best_answer = " ".join([token[0] for token in loc.leaves()])
+        best_answer = parse_where(question, best_answer)
+    
+    if question_words[0] == "Why":
+        # print("-----FOUND WHY-------")
+        candidate_sent = get_sentences(best_answer)
+        for sent in candidate_sent:
+            for index,pair in enumerate(sent):
+                if pair[0] == "because":
+                    sent_split = sent[index:]
+                    best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
+    
+    if question_words[0] == "Who":
+        # print(best_answer)
+        try:
+            sgraph = story[s_type][sentences.index(best_answer)]
+            sword  = find_main(sgraph)['lemma']
+            node   = find_node(qword, sgraph)
+
+            if node != None:
+                best_answer = best_answer[:best_answer.index(node['word'])]
+            else:
+                pass
+        except:
+            pass
     
     return best_answer
 
@@ -369,6 +387,20 @@ def sent_test():
         print(tree)
     # print(sgraph[0])
     """
+def parse_test():
+    driver = QABase()
+    q = driver.get_question("blogs-03-6")
+    story = driver.get_story(q["sid"])
+
+    given_sent = 'The narrator went back to a store named Home Depot in order to purchase a portable generator.'
+    qgraph = q["dep"]
+
+    print(parse_where(q['text'], given_sent))
+    print(q['text'])
+    print(given_sent)
+
+
+
 
 #############################################################
 ###     Dont change the code in this section
@@ -389,7 +421,8 @@ def run_qa(evaluate=False):
 
 
 def main():
-    sent_test()
+    #sent_test()
+    parse_test()
     #run_qa(evaluate=False)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py

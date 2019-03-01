@@ -1,0 +1,32 @@
+Questions with other potential answers
+
+fables-01-4
+What did the fox do to the cheese?
+Correct Answer: snatched
+Potential Other Answer Sentence: A fox observed the crow and tried to discover how to get the cheese.
+Potential Otehr Answer: tried to discover how to get the cheese
+
+fables-04-5
+What did the fox do to the soup?
+Correct Answer: lapped the soup with relish
+Potential Other Answer Sentence: The fox only served some soup in a flat and large dish.
+Potential Other Answer: served some
+
+mc500.train.18.1
+Where did Kelly go?
+Correct Answer: outside to her backyard
+Potential Other Answer Sentence: After Kelly collected all of the flowers, she went inside and tied them together with string.
+Potential Other Answer: inside
+
+Questions that gave the wrong answer
+fables-03-1
+blogs-02-10
+fables-04-4
+All the questions are the same: Who is the story about
+All the answers are the same: a lion and a bull
+
+
+
+
+
+
