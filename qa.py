@@ -393,12 +393,29 @@ def parse_test():
     q = driver.get_question("blogs-03-6")
     story = driver.get_story(q["sid"])
 
+    if q['type'] == "Story" or q['type'] == "Story|Sch":
+        text = story['text']
+        s_type = 'story_dep'
+    elif q['type'] == "Sch" or q['type'] == "Sch|Story":
+        text = story['sch']
+        s_type = 'sch_dep'
+    sentences = nltk.sent_tokenize(text)
+
     given_sent = 'The narrator went back to a store named Home Depot in order to purchase a portable generator.'
     qgraph = q["dep"]
+    ggraph = story[s_type][sentences.index(given_sent)]
 
-    print(parse_where(q['text'], given_sent))
+    #print(parse_where(q['text'], given_sent))
     print(q['text'])
     print(given_sent)
+    q_main_node = find_main(qgraph)
+    g_main_node = find_main(ggraph)
+    print(wordnet._morphy(q_main_node["lemma"], get_wordnet_pos(q_main_node["tag"])))
+    print(wordnet._morphy(g_main_node["lemma"], get_wordnet_pos(g_main_node["tag"])))
+
+    print(q_main_node)
+    print(g_main_node)
+
 
 
 
@@ -428,7 +445,7 @@ def main():
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     #score_answers()
-    mod_score_answers(print_story=True)
+    #mod_score_answers(print_story=False)
 
 if __name__ == "__main__":
     main()
