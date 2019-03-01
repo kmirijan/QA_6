@@ -8,7 +8,9 @@ import os
 from time import strftime
 import time
 from progress.bar import Bar
+from gensim.models import word2vec
 
+w2vecmodel = "data/torontobooks_unigrams.bin"
 
 
 stops = set(stopwords.words("english"))
@@ -18,8 +20,10 @@ class Word2vecExtractor:
 
     def __init__(self, w2vecmodel):
         #self.w2vecmodel=gensim.models.Word2Vec.load_word2vec_format(w2vecmodel, binary=binary)
-        self.w2vecmodel = gensim.models.KeyedVectors.load_word2vec_format(w2vecmodel)
-
+        #self.w2vecmodel = gensim.models.KeyedVectors.load_word2vec_format(w2vecmodel)
+        #model = gensim.models.KeyedVectors.load_word2vec_format(w2vecmodel, binary=True)
+        #self.w2vecmodel =  model.save_word2vec_format('data/torontobooks_unigrams.txt', binary=False)
+        self.w2vecmodel = gensim.models.KeyedVectors.load_word2vec_format(w2vecmodel) 
         #self.w2vecmodel = w2vecmodel
 
     def sen2vec(self,sentence):
@@ -48,7 +52,6 @@ class Word2vecExtractor:
 
         if count != 0:
             res /= count
-
         return res 
 
     def get_doc2vec_feature_dict(self, doc):  
@@ -98,7 +101,7 @@ def get_vocab():
 if __name__ == "__main__":
     from gensim.scripts.glove2word2vec import glove2word2vec
     voc = get_vocab()
-    my_glove_file = "data/my-glove.txt"
+    #my_glove_file = "data/my-glove.txt"
     get_embeddings("/home/diesel/Projects/Datasets/Datasets/glove_data/glove.6B/glove.6B.300d.txt", my_glove_file, voc)
     t0 = time.time()
     glove_w2v_file = "data/glove-w2v.txt"

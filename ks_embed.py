@@ -4,12 +4,16 @@ from qa_engine.base import QABase
 from qa_engine.score_answers import main as score_answers
 from nltk.stem.wordnet import WordNetLemmatizer
 from word2vec_extractor import Word2vecExtractor
+import gensim
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
 lmtzr = WordNetLemmatizer()
 
 DATA_DIR = "data"
-w2vecmodel = "data/glove-w2v.txt"
+#w2vecmodel = "data/glove-w2v.txt"
+w2vecmodel = "data/glove.6B.300d.txt"
 w2v = None
 
 GRAMMAR =   """
@@ -24,8 +28,6 @@ GRAMMAR =   """
 LOC_PP = set(["in", "from","on", "at", "along","under", "around","near","to","in front of"])
 
 def get_sentences(text):
-    print("In get sentences")
-
     sentences = nltk.sent_tokenize(text)
     sentences = [nltk.word_tokenize(sent) for sent in sentences]
     sentences = [nltk.pos_tag(sent) for sent in sentences]
@@ -58,7 +60,6 @@ def get_wordnet_pos(treebank_tag):
         return wordnet.NOUN
 
 def norm_question(question):
-    print("In norm_question")
     quest_words = nltk.word_tokenize(question['text'])
     quest_words = nltk.pos_tag(quest_words)
     
@@ -88,7 +89,6 @@ def norm_question(question):
     return root_question_words, qword
 
 def norm_text(sent):
-    print("In norm_text")
     sent_words = nltk.word_tokenize(sent)
     sent_words = nltk.pos_tag(sent_words)
 
@@ -130,8 +130,21 @@ def get_word_embedding_features(text):
         print("loading word vectors ...", w2vecmodel)
         w2v = Word2vecExtractor(w2vecmodel)
     # might want to change this to sent2vec?
-    feature_dict = w2v.get_doc2vec_feature_dict(text)
-    return feature_dict
+    #feature_dict = w2v.get_doc2vec_feature_dict(text)
+    doc_model = w2v.doc2vec(text)
+    sent_model = w2v.sen2vec(text)
+
+    return sent_model
+
+def cos_sim(a, b):
+	"""Takes 2 vectors a, b and returns the cosine similarity according 
+	to the definition of the dot product
+	"""
+	dot_product = np.dot(a, b)
+	norm_a = np.linalg.norm(a)
+	norm_b = np.linalg.norm(b)
+	return dot_product / (norm_a * norm_b)
+
 
 
 def get_answer(question, story):
@@ -178,43 +191,75 @@ def get_answer(question, story):
     else:
         text = story['text']
         s_type = 'story_dep'
-
-    feature_vectors = {}
+    
     sentences = nltk.sent_tokenize(text)
     #get tokenized list of words for story text
     #words = get_words(text)
-    feature_vectors.update(get_word_embedding_features(text))
-    print("feature_vectors")
-    print(feature_vectors)
+   
+    #word embeddings of the text is preprocessed in wor3vec_extractor
+    #model = get_word_embedding_features(text)
+    #print("model")
+    #print(model)
 
+
+    q_vector = get_word_embedding_features(question['text'])
+#    print("sentences")
+    q_mean = np.mean(q_vector)
+    best_val = 0
+    best_sent = ""
+    print("----------", question['text'],"----------")
+    print("Possible sentences")
+    print(sentences)
     for sent in sentences:
         # A list of all the word tokens in the sentence
         bosw = norm_text(sent)
         # Count the # of overlapping words between the Q and the A
         # & is the set intersection operator
         overlap = len(boqw & bosw)
+        sent_vector = get_word_embedding_features(sent)        
+        print(sent_vector)
+        s_mean = np.mean(sent_vector)
+#        print("---Cosine similarity---")
+#        similarity = cos_sim(q_vector,sent_vector)
+        m = np.asmatrix(q_vector)
+        n = np.asmatrix(sent_vector)
+        similarity = cosine_similarity(m,n)
         
+        if similarity > best_val:
+            best_val = similarity
+            best_sent = sent
+        print(similarity,"--->", sent)
+#        print(similarity)        
         answers.append((overlap, sent, bosw))
-    answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
-    default_answer = (answers[0])[1]
-    max_overlap = (answers[0])[0]
-    best_answer = ''
+    
+    
+    print("***WORD EMBED BEST SENTENCE***")
+    print(best_val,": ",best_sent)
+    print("\n")
+    if len(best_sent) == 0:
+        answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
+        default_answer = (answers[0])[1]
+        max_overlap = (answers[0])[0]
+        best_answer = ''
 
-    for answer in answers:
-        if answer[0] == max_overlap and qword in answer[2]:
-            if best_answer == '':
-                best_answer = answer[1]
-            else:
-                best_answer = best_answer + ' ' + answer[1]
+        for answer in answers:
+            if answer[0] == max_overlap and qword in answer[2]:
+                if best_answer == '':
+                    best_answer = answer[1]
+                else:
+                    best_answer = best_answer + ' ' + answer[1]
 
-    if best_answer == '':
-        best_answer = default_answer
+        if best_answer == '':
+            best_answer = default_answer
 
+    else:
+        best_answer = best_sent
     # print(question['qid'])
     # print(best_answer)
     # print('\n')  
-    question = question["text"]  
-    
+        question = question["text"]  
+
+    """    
     if "where" in question.lower():
         candidate_sent = get_sentences(best_answer)
         chunker = nltk.RegexpParser(GRAMMAR)
@@ -244,6 +289,7 @@ def get_answer(question, story):
         except:
             pass
     
+    """
     return best_answer
 
 def find_main(graph):

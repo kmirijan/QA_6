@@ -2,6 +2,7 @@ import sys, nltk, operator
 from nltk.corpus import wordnet
 from qa_engine.base import QABase
 from qa_engine.score_answers import main as score_answers
+from qa_engine.modified_score_answers import main as mod_score_answers
 from nltk.stem.wordnet import WordNetLemmatizer
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
@@ -427,6 +428,7 @@ def main():
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     #score_answers()
+    mod_score_answers(print_story=True)
 
 if __name__ == "__main__":
     main()
