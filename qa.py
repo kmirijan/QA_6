@@ -1,12 +1,15 @@
-import sys, nltk, operator
+import re, sys, nltk, operator
 from nltk.corpus import wordnet
 from qa_engine.base import QABase
 from qa_engine.score_answers import main as score_answers
 from qa_engine.modified_score_answers import main as mod_score_answers
 from nltk.stem.wordnet import WordNetLemmatizer
+import string
+from nltk.stem import PorterStemmer
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
 lmtzr = WordNetLemmatizer()
+stemmer = PorterStemmer()
 
 GRAMMAR =   """
             N: {<PRP>|<NN.*>}
@@ -177,6 +180,16 @@ def parse_where(question, best_answer):
 
     return best_answer
 
+def get_words(text):
+    words_list = []
+    for sent in nltk.sent_tokenize(text):
+        for word, pos in nltk.pos_tag(nltk.word_tokenize(sent)):
+            if word not in string.punctuation:
+            #if word is not re.search(r'\w', word):
+                words_list.append(word.lower())
+
+    return words_list
+
 def get_answer(question, story):
     """
     :param question: dict
@@ -222,14 +235,29 @@ def get_answer(question, story):
         best_answer = parse_where(question, best_answer)
     
     if question_words[0] == "Why":
-        # print("-----FOUND WHY-------")
+        #get a tokenized list of words from the question
+        words = get_words(question)
+        #get last word of question sentence
+        last_word = words[-1]
         candidate_sent = get_sentences(best_answer)
         for sent in candidate_sent:
             for index,pair in enumerate(sent):
+                #if there are two sentences returned, typically always want 
+                #the sentence returned after "because"
                 if pair[0] == "because":
                     sent_split = sent[index:]
-                    best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
-    
+                    best_answer1 = ' '.join([word_pair[0] for word_pair in sent_split])
+                    print("Best answer 1:", best_answer1)
+                    break
+                #get words after the last word in the question
+                else:
+                    if stemmer.stem((pair[0]).lower()) == stemmer.stem(last_word):
+                        val = index+1
+                        sent_split = sent[val:]
+                        best_answer = ' '.join([word_pair[0] for word_pair in sent_split if word_pair[0] not in string.punctuation])
+                        print("Best answer 2:", best_answer)
+                        break
+
     if question_words[0] == "Who":
         # print(best_answer)
         try:
@@ -440,12 +468,12 @@ def run_qa(evaluate=False):
 
 def main():
     #sent_test()
-    parse_test()
-    #run_qa(evaluate=False)
+#    parse_test()
+    run_qa(evaluate=False)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-    #score_answers()
-    #mod_score_answers(print_story=False)
+#    score_answers()
+    mod_score_answers(print_story=False)
 
 if __name__ == "__main__":
     main()
