@@ -250,13 +250,13 @@ def get_answer(question, story):
 
     question_words = nltk.word_tokenize(question["text"])
 
-    if question_words[0] == "Did" or question_words[0].lower == "Had":
+    if question_words[0].lower() == "did" or question_words[0].lower() == "had":
         best_answer = parse_yes_no(question, best_answer)
 
-    if question_words[0] == "Where":
+    if question_words[0].lower() == "where":
         best_answer = parse_where(question, story, sentences, best_answer, s_type)
     
-    if question_words[0] == "Why":
+    if question_words[0].lower() == "why":
         # print("-----FOUND WHY-------")
         candidate_sent = get_sentences(best_answer)
         for sent in candidate_sent:
@@ -265,8 +265,7 @@ def get_answer(question, story):
                     sent_split = sent[index:]
                     best_answer = ' '.join([word_pair[0] for word_pair in sent_split])
     
-    if question_words[0] == "Who":
-        # print(best_answer)
+    if question_words[0].lower() == "who":
         try:
             sgraph = story[s_type][sentences.index(best_answer)]
             sword  = find_main(sgraph)['lemma']
@@ -278,8 +277,45 @@ def get_answer(question, story):
                 pass
         except:
             pass
+
+    if question_words[0].lower() == "what":
+
+        qgraph       = question["dep"]
+        q_relations  = [[node['address'], node['word'], node['rel']] for node in qgraph.nodes.values() if node['rel'] != None]
+        q_relations  = sorted(q_relations, key=lambda tup: tup[0])
+
+        try:
+            s_text, s_type, sentences = get_text_type(question, story)
+            boqw, qword = norm_question(question)
+            sgraph      = story[s_type][sentences.index(best_answer)]
+            sword       = find_main(sgraph)['lemma']
+            node        = find_node(qword, sgraph)
+
+            if node != None:
+                best_answer = nltk.word_tokenize(best_answer[best_answer.index(node['word']):])
+                best_answer = ' '.join(word for word in best_answer[1:] if word.isalpha())
+            else:
+                pass
+        except:
+            pass
     
     return best_answer
+
+def get_text_type(question, story):
+    text   = ''
+    s_type = ''
+    sentences = ''
+
+    if question['type'] == "Sch":
+        text   = story['sch']
+        s_type = 'sch_dep'
+    else:
+        text   = story['text']
+        s_type = 'story_dep'
+    
+    sentences = nltk.sent_tokenize(text)
+
+    return text, s_type, sentences
 
 def find_main(graph):
     for node in graph.nodes.values():
