@@ -1,0 +1,23 @@
+Team Members:
+1) Khachatur Mirijanyan
+2) Roman Sul
+3) Katelyn Suhr
+
+Tasks:
+Improved Sentence Selection
+Improved "What", "Where", "Why" categories
+Tried word_embeddings
+Created group specific score-answers. Not turned in since it was part of the qa_engine. Meant for debugging
+
+Khachatur Contribution:
+Improved sentence selection and implemented "Where" questions
+Sentence Selection:
+Put extra emphasis on sentence roots and nsubj through the d-parse when using the bag of words method
+Did a lot of cleanup of word stemming so that words that are meant to match do so
+"Where" Questions:
+Fully uses the dependency parse to get the necessary peice of sentence.
+Specifically targeted the "nmod" relation to find matches between candidate sentences and questions and where to start parsing
+Tries to then get the rest of the answer with the most relevant relations
+If the dependency parse can't be used, the it falls back to using a chunker.
+
+
