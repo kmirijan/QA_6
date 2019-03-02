@@ -1,0 +1,3 @@
+I wrote a modified version of score answers that output the questions and text for any question we got wrong. This was for debugging purposes, as it cut some time used to look up the stories and sentences for each wrong question.
+
+I also worked on 'What' questions. My solution is still naive, as it only return all text to the right of the head verb. MOre work is being done to fully use the dependency tree in the future.
