@@ -111,7 +111,7 @@ def get_question_words(qgraph, qword):
                 qset.add(node['lemma'])
     return qset
 
-def select_sentence(question, story):
+def select_sentence(question, story, text, s_type):
     answers = []
 
     boqw, qword = norm_question(question)
@@ -122,18 +122,6 @@ def select_sentence(question, story):
     # print(question['text'])
     # print(boqw)
     # print(qword)
-
-    text = ''
-    
-    if question['type'] == "Story" or question['type'] == "Story|Sch":
-        text = story['text']
-        s_type = 'story_dep'
-    elif question['type'] == "Sch" or question['type'] == "Sch|Story":
-        text = story['sch']
-        s_type = 'sch_dep'
-    else:
-        text = story['text']
-        s_type = 'story_dep'
 
     sentences = nltk.sent_tokenize(text)
     for sent in sentences:
@@ -171,7 +159,7 @@ def parse_yes_no(question, best_answer):
     best_answer = 'yes'
     return best_answer
 
-def parse_where(question, best_answer):
+def parse_chunk_where(question, best_answer):
     candidate_sent = get_sentences(best_answer)
     chunker = nltk.RegexpParser(GRAMMAR)
     locations = find_candidates(candidate_sent, chunker)
@@ -189,6 +177,44 @@ def get_words(text):
                 words_list.append(word.lower())
 
     return words_list
+
+def parse_where(question, story, sentences, given_sent, s_type):
+    qgraph = question["dep"]
+    q_main_node = find_main(qgraph)
+    q_main_word = wordnet._morphy(q_main_node["lemma"], get_wordnet_pos(q_main_node["tag"]))
+    #print("Q_MAIN_NODE:", q_main_node)
+
+    cand_sents = nltk.sent_tokenize(given_sent)
+    for cand_sent in cand_sents:
+        ggraph = story[s_type][sentences.index(cand_sent)]
+        g_main_node = find_main(ggraph)
+        g_main_word = wordnet._morphy(g_main_node["lemma"], get_wordnet_pos(g_main_node["tag"]))
+        nmod_deps = get_nmod_dep(g_main_node, ggraph)
+
+        best_answer = ""
+        chunk_ans = ""
+        dep_ans =""
+        if nmod_deps and g_main_word == q_main_word:
+            for dep in nmod_deps:
+                result = []
+                result.append((dep["address"], dep["word"]))
+                all_deps = get_nmod_dependents(dep, ggraph)
+                for item in all_deps:
+                    result.append((item["address"], item['word']))
+                result = sorted(result)
+                answer = ' '.join([word_pair[1] for word_pair in result])
+                dep_ans = dep_ans + " " + answer
+        else:
+            answer = parse_chunk_where(question['text'], given_sent)
+            chunk_ans = chunk_ans + " " + answer
+
+        if dep_ans != "":
+            return dep_ans
+        elif chunk_ans != "":
+            return chunk_ans
+        else:
+            return given_sent
+
 
 def get_answer(question, story):
     """
@@ -218,28 +244,39 @@ def get_answer(question, story):
         sid --  the story id
     """
     ###     Your Code Goes Here         ###
-    best_answer = select_sentence(question, story)
 
-    question = question["text"]
-    question_words = nltk.word_tokenize(question)
+    text = ''
+    
+    if question['type'] == "Story" or question['type'] == "Story|Sch":
+        text = story['text']
+        s_type = 'story_dep'
+    elif question['type'] == "Sch" or question['type'] == "Sch|Story":
+        text = story['sch']
+        s_type = 'sch_dep'
+    else:
+        text = story['text']
+        s_type = 'story_dep'
 
-    if question_words[0] == "Did" or question_words[0].lower == "Had":
+    sentences = nltk.sent_tokenize(text)
+
+    best_answer = select_sentence(question, story,text, s_type)
+
+    question_words = nltk.word_tokenize(question["text"])
+
+    if question_words[0].lower() == "did" or question_words[0].lower() == "had":
         best_answer = parse_yes_no(question, best_answer)
 
-    if question_words[0] == "Where":
-        # candidate_sent = get_sentences(best_answer)
-        # chunker = nltk.RegexpParser(GRAMMAR)
-        # locations = find_candidates(candidate_sent, chunker)
-        # for loc in locations:
-        #     best_answer = " ".join([token[0] for token in loc.leaves()])
-        best_answer = parse_where(question, best_answer)
+    if question_words[0].lower() == "where":
+        best_answer = parse_where(question, story, sentences, best_answer, s_type)
     
     if question_words[0] == "Why":
         #get a tokenized list of words from the question
-        words = get_words(question)
+        words = get_words(question["text"])
         #get last word of question sentence
         last_word = words[-1]
         candidate_sent = get_sentences(best_answer)
+        best_answer1 = ""
+        best_answer2 = ""
         for sent in candidate_sent:
             for index,pair in enumerate(sent):
                 #if there are two sentences returned, typically always want 
@@ -247,7 +284,6 @@ def get_answer(question, story):
                 if pair[0] == "because":
                     sent_split = sent[index:]
                     best_answer1 = ' '.join([word_pair[0] for word_pair in sent_split])
-                    print("Best answer 1:", best_answer1)
                     break
                 #get words after the last word in the question
                 else:
@@ -255,11 +291,15 @@ def get_answer(question, story):
                         val = index+1
                         sent_split = sent[val:]
                         best_answer = ' '.join([word_pair[0] for word_pair in sent_split if word_pair[0] not in string.punctuation])
-                        print("Best answer 2:", best_answer)
-                        break
+        if best_answer1 != "":
+            best_answer = best_answer1
+        elif best_answer2 != "":
+            best_answer = best_answer2
+        else:
+            best_answer = best_answer
 
-    if question_words[0] == "Who":
-        # print(best_answer)
+    
+    if question_words[0].lower() == "who":
         try:
             sgraph = story[s_type][sentences.index(best_answer)]
             sword  = find_main(sgraph)['lemma']
@@ -271,8 +311,45 @@ def get_answer(question, story):
                 pass
         except:
             pass
+
+    if question_words[0].lower() == "what":
+
+        qgraph       = question["dep"]
+        q_relations  = [[node['address'], node['word'], node['rel']] for node in qgraph.nodes.values() if node['rel'] != None]
+        q_relations  = sorted(q_relations, key=lambda tup: tup[0])
+
+        try:
+            s_text, s_type, sentences = get_text_type(question, story)
+            boqw, qword = norm_question(question)
+            sgraph      = story[s_type][sentences.index(best_answer)]
+            sword       = find_main(sgraph)['lemma']
+            node        = find_node(qword, sgraph)
+
+            if node != None:
+                best_answer = nltk.word_tokenize(best_answer[best_answer.index(node['word']):])
+                best_answer = ' '.join(word for word in best_answer[1:] if word.isalpha())
+            else:
+                pass
+        except:
+            pass
     
     return best_answer
+
+def get_text_type(question, story):
+    text   = ''
+    s_type = ''
+    sentences = ''
+
+    if question['type'] == "Sch":
+        text   = story['sch']
+        s_type = 'sch_dep'
+    else:
+        text   = story['text']
+        s_type = 'story_dep'
+    
+    sentences = nltk.sent_tokenize(text)
+
+    return text, s_type, sentences
 
 def find_main(graph):
     for node in graph.nodes.values():
@@ -283,6 +360,12 @@ def find_main(graph):
 def find_nsubj(graph):
     for node in graph.nodes.values():
         if node['rel'] == 'nsubj':
+            return node
+    return None
+
+def find_nmod(graph):
+    for node in graph.nodes.values():
+        if node['rel'] == 'nmod':
             return node
     return None
 
@@ -333,6 +416,40 @@ def find_candidates(sentences, chunker):
         candidates.extend(locations)
 
     return candidates
+
+def get_dependents(node, graph):
+    results = []
+    for item in node["deps"]:
+        address = node["deps"][item][0]
+        dep = graph.nodes[address]
+        results.append(dep)
+        results = results + get_dependents(dep, graph)
+    #print("get dependents")
+    #print(results)
+    return results
+
+def get_nmod_dependents(node, graph):
+    results = []
+    for item in node["deps"]:
+        if item != "advcl" and item != "mwe":
+            address = node["deps"][item][0]
+            dep = graph.nodes[address]
+            results.append(dep)
+            results = results + get_nmod_dependents(dep, graph)
+    #print("get dependents")
+    #print(results)
+    return results
+
+def get_nmod_dep(node, graph):
+    results = []
+    for item in node["deps"]:
+        if item == "nmod":
+            address = node["deps"][item][0]
+            dep = graph.nodes[address]
+            results.append(dep)
+    #print("get dependents")
+    #print(results)
+    return results
 
 def sent_test():
     driver = QABase()
@@ -418,7 +535,7 @@ def sent_test():
     """
 def parse_test():
     driver = QABase()
-    q = driver.get_question("blogs-03-6")
+    q = driver.get_question("blogs-03-5")
     story = driver.get_story(q["sid"])
 
     if q['type'] == "Story" or q['type'] == "Story|Sch":
@@ -429,20 +546,53 @@ def parse_test():
         s_type = 'sch_dep'
     sentences = nltk.sent_tokenize(text)
 
-    given_sent = 'The narrator went back to a store named Home Depot in order to purchase a portable generator.'
-    qgraph = q["dep"]
-    ggraph = story[s_type][sentences.index(given_sent)]
+    given_sent = 'Once, storm was occurring in Louisiana. Storm occurred.'
+
+    # qgraph = q["dep"]
+    # print("QUESTION:",q['text'])
+    # q_main_node = find_main(qgraph)
+    # q_main_word = wordnet._morphy(q_main_node["lemma"], get_wordnet_pos(q_main_node["tag"]))
+    # #print("Q_MAIN_NODE:", q_main_node)
+
+    # cand_sents = nltk.sent_tokenize(given_sent)
+    # for cand_sent in cand_sents:
+    #     ggraph = story[s_type][sentences.index(cand_sent)]
+    #     g_main_node = find_main(ggraph)
+    #     print("CAND_SENT",cand_sent)
+    #     g_main_word = wordnet._morphy(g_main_node["lemma"], get_wordnet_pos(g_main_node["tag"]))
+    #     nmod_deps = get_nmod_dep(g_main_node, ggraph)
+    #     best_answer = ""
+    #     chunk_ans = ""
+    #     dep_ans =""
+    #     print(g_main_word, q_main_word)
+    #     if nmod_deps and g_main_word == q_main_word:
+    #         for dep in nmod_deps:
+    #             result = []
+    #             result.append((dep["address"], dep["word"]))
+    #             all_deps = get_nmod_dependents(dep, ggraph)
+    #             for item in all_deps:
+    #                 result.append((item["address"], item['word']))
+    #             result = sorted(result)
+    #             answer = ' '.join([word_pair[1] for word_pair in result])
+    #             dep_ans = dep_ans + " " + answer
+    #             print("DEP_BEST:",answer)
+    #     else:
+    #         answer = parse_chunk_where(q['text'], given_sent)
+    #         chunk_ans = chunk_ans + " " + answer
+    #         print("CHUNK_BEST:", answer)
+
+    #     if dep_ans != "":
+    #         print(dep_ans)
+    #     elif chunk_ans != "":
+    #         print(chunk_ans)
+    #     else:
+    #         print(given_sent)
+
+    print(parse_where(q, story, sentences, given_sent, s_type))
+
 
     #print(parse_where(q['text'], given_sent))
-    print(q['text'])
-    print(given_sent)
-    q_main_node = find_main(qgraph)
-    g_main_node = find_main(ggraph)
-    print(wordnet._morphy(q_main_node["lemma"], get_wordnet_pos(q_main_node["tag"])))
-    print(wordnet._morphy(g_main_node["lemma"], get_wordnet_pos(g_main_node["tag"])))
 
-    print(q_main_node)
-    print(g_main_node)
 
 
 
@@ -467,13 +617,12 @@ def run_qa(evaluate=False):
 
 
 def main():
-    #sent_test()
-#    parse_test()
+    #parse_test()
     run_qa(evaluate=False)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-#    score_answers()
-    mod_score_answers(print_story=False)
+    score_answers()
+    #mod_score_answers(print_story=False)
 
 if __name__ == "__main__":
     main()
