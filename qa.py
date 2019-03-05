@@ -140,7 +140,11 @@ def select_sentence(question, story, text, s_type):
 
     for answer in answers:
         if answer[0] == max_overlap:
-            ssubj = find_nsubj(story[s_type][sentences.index(answer[1])])
+            try:
+                ssubj = find_nsubj(story[s_type][sentences.index(answer[1])])
+            except IndexError:
+                ssubj = None
+
             if(ssubj is not None):
                 ssubj = ssubj["lemma"]
             if qword in answer[2] and qsubj == ssubj:
@@ -618,7 +622,7 @@ def run_qa(evaluate=False):
 
 def main():
     #parse_test()
-    run_qa(evaluate=False)
+    run_qa(evaluate=True)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     score_answers()

@@ -1,7 +1,7 @@
 Team Members:
 1) Khachatur Mirijanyan
 2) Roman Sul
-3) Katelyn Suhr
+3) Katelyn Suhr(Turning In)
 
 Tasks:
 Improved Sentence Selection
@@ -19,5 +19,29 @@ Fully uses the dependency parse to get the necessary peice of sentence.
 Specifically targeted the "nmod" relation to find matches between candidate sentences and questions and where to start parsing
 Tries to then get the rest of the answer with the most relevant relations
 If the dependency parse can't be used, the it falls back to using a chunker.
+
+Roman Contributions:
+Debugger:
+Wrote a modified version of score answers that output the questions and text for any question we got wrong. 
+This was for debugging purposes, as it cut some time used to look up the stories and sentences for each wrong question.
+"What" Questions
+Also worked on 'What' questions. The solution is still naive, as it only return all text to the right of the head verb. 
+More work is being done to fully use the dependency tree in the future.
+
+Katelyn Contributions:
+Word Embeddings:
+Initally worked on implementing word embeddings to improve sentence selection.
+Got the word embedding for the sentence of the question using sen2vec from the word2vec_extractor file and then got the word embedding for each possible sentence.
+From there, the cosine similarity was taken to find which sentence would best match with the question. 
+This resulted in a 75% accuracy in Recall compared to 83% from our last assignment. 
+In this case, we decided to move on from word embeddings and keep our original sentence selection and experiment more with word embeddings in the next phase.
+"Why" Questions
+Looked for the word "because" in the list of candidate sentences and grab the rest of the sentence after that. 
+If the sentence does not have the word "because", the last word of the question sentencecwas grabbed, and search for that word in list of the candidate sentences. 
+If that word is found, I return everything after that word because it is seen to have a typical pattern from looking at the sentences on the Stanford parser. 
+If the sentence I'm looking for does not have the word, because it is the wrong sentence, then all the possible sentences are returned. 
+This method has returned majority of why questions except for gold answers that have inconsistencies.
+
+
 
 
