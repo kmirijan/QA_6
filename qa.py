@@ -143,6 +143,7 @@ def select_sentence(question, story, text, s_type):
             try:
                 ssubj = find_nsubj(story[s_type][sentences.index(answer[1])])
             except IndexError:
+                print("Index Error")
                 ssubj = None
 
             if(ssubj is not None):
