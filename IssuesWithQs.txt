@@ -1,29 +1,106 @@
-Questions with other potential answers
+﻿blogs-01-11
+What was fired?
+Sentence: As things got worse tear gas and bean bag bullets were fired at the rioters while they smash windows of stores.
+Answer: bean bag bullets
+Couldn't the answer also be tear gas? Or both?
 
-fables-01-4
-What did the fox do to the cheese?
-Correct Answer: snatched
-Potential Other Answer Sentence: A fox observed the crow and tried to discover how to get the cheese.
-Potential Otehr Answer: tried to discover how to get the cheese
+blogs-01-12
+What was fired at the rioters?
+Sentence: As things got worse tear gas and bean bag bullets were fired at the rioters while they smash windows of stores.
+Answer: bean bag bullets
+Couldn't the answer also be tear gas? Or both?
 
-fables-04-5
-What did the fox do to the soup?
-Correct Answer: lapped the soup with relish
-Potential Other Answer Sentence: The fox only served some soup in a flat and large dish.
-Potential Other Answer: served some
+fables-05-8
+Who lost a corp?
+Misspelled "crop" as "corp". This would probably mess with trying to find matches is words and sentences
 
-mc500.train.18.1
-Where did Kelly go?
-Correct Answer: outside to her backyard
-Potential Other Answer Sentence: After Kelly collected all of the flowers, she went inside and tied them together with string.
-Potential Other Answer: inside
+blogs-02-7
+There is an error in the blogs-02 sentence text.
+I found this sentence
+At first, my logical mind thought that it was my brother playing around with his new flashlight (not at all like it, but the closest thing I could imagine)
+And when I went inside the house, everyone was snoring!
+Yes!! The above is all 1 sentence when it should be 2. It is messing with sentence selection.
+There needs to be a period at the end of the 1st sentence.
 
-Questions that gave the wrong answer
 fables-03-1
-blogs-02-10
-fables-04-4
-All the questions are the same: Who is the story about
-All the answers are the same: a lion and a bull
+Who is the story about?
+Answer: an eagle an a serpent
+Misspell, should be an eagle and(not an) a serpent. Could also include countryman?
+
+mc500.train.18.16
+What time did Kelly's mother wake up?
+Answer: "8:30 AM"
+Quotes included in answer.
+In the console it looks like ""8:30 AM"" with an extra set of quotes. 
+In the tsv it looks like â€œ8:30 AMâ€.
+
+fables-06-18
+Why did the Lion lose his temper?
+Answer: because he thought that the mouse is extremely not able to help him.
+This answer doesn't make any sense.
+Potential Sentence: The lion awaked because a mouse ran into the face of the lion.
+Potential Answer: The lion awaked.
+I don't know if my potential answer makes sense either.
+It would also require referencing back to previous sentences, and I don't know if you want us to do that
+
+mc500.train.18.23
+where did she pick flowers flowers?
+The question should probably be "where did she pick the flowers". Extra "flowers".
+
+blogs-01-16
+Why did the people protest?
+Sentence: A people protested because it disagreed about a view.
+Answer: because it disagreed about a view.
+Potential Answer: because they disagreed about a view
+Gold answer gives "they" when the sentence from the story has "it", and gold answer does not include a period while our resp does
+
+blogs-05-18
+Where did the narrator stand?
+Answer: up on a patio.
+This does not make any sentence in the context of the teacher story.
+This answer does not exist in the text.
+Possible Sentence: The narrator checked the group of students for presence and stood at the front of a classroom.
+Possible Answer: at the front of a classroom
+
+blogs-04-12
+Why did the narrator place the bowl on the deck?
+Answer: In order for Benjamin to drink the bowl's water.
+Potential Answer: in order for Benjamin to drink the bowl 's water
+Gold answer includes a period when our answer doesn't. Usually there is no period
+
+mc500.train.111.4
+Where did Will walk to?
+Sentence: It stopped raining and Will walked all the way to the store.
+Answer: the store
+Possible Sentence: Will walked over to the living room.
+Possible Answer: to the living room
+
+mc500.train.18.21
+Why was Kelly collecting flowers?
+Answer: She was going to give her mother the flowers
+There is no associated sentence like this.
+It would require some kind of sentence generation or rephrasing
+Potential Sentence: She was in a hurry because it was Mother's Day and she had to collect flowers before her mom woke up to give to her as a present.
+Potential Answer: to give to her as a present.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

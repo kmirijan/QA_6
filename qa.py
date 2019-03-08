@@ -1,11 +1,14 @@
-import re, sys, nltk, operator
+import re, sys, nltk, operator, csv, string
 from nltk.corpus import wordnet
 from qa_engine.base import QABase
 from qa_engine.score_answers import main as score_answers
 from qa_engine.modified_score_answers import main as mod_score_answers
 from nltk.stem.wordnet import WordNetLemmatizer
-import string
 from nltk.stem import PorterStemmer
+from nltk.corpus import wordnet as wn
+from collections import defaultdict
+
+DATA_DIR = "./wordnet"
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
 lmtzr = WordNetLemmatizer()
@@ -21,6 +24,19 @@ GRAMMAR =   """
             """
 
 LOC_PP = set(["in", "from","on", "at", "along","under", "around","near","to","in front of"])
+
+def load_wordnet_ids(filename):
+    file = open(filename, 'r')
+    if "noun" in filename: type = "noun"
+    else: type = "verb"
+    csvreader = csv.DictReader(file, delimiter=",", quotechar='"')
+    word_ids = defaultdict()
+    for line in csvreader:
+        word_ids[line['synset_id']] = {'synset_offset': line['synset_offset'], 'story_'+type: line['story_'+type], 'stories': line['stories']}
+    return word_ids
+
+noun_ids = load_wordnet_ids("{}/{}".format(DATA_DIR, "Wordnet_nouns.csv"))
+verb_ids = load_wordnet_ids("{}/{}".format(DATA_DIR, "Wordnet_verbs.csv"))
 
 def get_sentences(text):
     sentences = nltk.sent_tokenize(text)
@@ -42,6 +58,50 @@ def get_wordnet_pos(treebank_tag):
     else:
         return wordnet.NOUN
 
+def get_wordnet_words(question):
+
+    sent_words = get_words(question["text"], True)
+    answer = ' '.join([word for word in sent_words])
+
+    all_synset_ids = []
+    wordnet_set = set()
+
+    for k, v in verb_ids.items():
+        stories = (v["stories"])
+        stories = stories.replace("\'", '')
+        stories = stories.replace(".vgl", '')
+        stories = stories.replace(",", '')
+        stories = nltk.word_tokenize(stories)
+        for story in stories:
+            if question['sid'] == story:
+                all_synset_ids.append(k)
+
+    for k, v in noun_ids.items():
+        stories = (v["stories"])
+        stories = stories.replace("\'", '')
+        stories = stories.replace(".vgl", '')
+        stories = stories.replace(",", '')
+        stories = nltk.word_tokenize(stories)
+        for story in stories:
+            if question['sid'] == story:
+                all_synset_ids.append(k)
+
+    for synset_id in all_synset_ids:
+        for synset in wn.synset(synset_id).hyponyms():
+            all_synset_ids.append(synset.name())
+        # for sysnet in wn.synset(synset_id).hypernyms():
+        #     all_synset_ids.append(synset.name())
+
+    for synset_id in all_synset_ids:
+        synsets = wn.synset(synset_id)
+        synset_lemmas_list = synsets.lemma_names()
+        for lemma in synset_lemmas_list:
+            val = lemma.replace('_', " ")
+            if val in answer:
+                wordnet_set.add(synset_id.split(".", 1)[0])
+
+    return wordnet_set
+
 def norm_question(question):
     quest_words = nltk.word_tokenize(question['text'])
     quest_words = nltk.pos_tag(quest_words)
@@ -50,8 +110,8 @@ def norm_question(question):
     del quest_words[0]
     del quest_words[-1]
 
-    root_question_words = set()
-    
+    root_question_words = get_wordnet_words(question)
+
     # Adds the root word to troot_question_words
     qgraph = question["dep"]
     qword = find_main(qgraph)['lemma']
@@ -143,7 +203,7 @@ def select_sentence(question, story, text, s_type):
             try:
                 ssubj = find_nsubj(story[s_type][sentences.index(answer[1])])
             except IndexError:
-                print("Index Error")
+                print("Index Error", question["qid"])
                 ssubj = None
 
             if(ssubj is not None):
@@ -173,15 +233,20 @@ def parse_chunk_where(question, best_answer):
 
     return best_answer
 
-def get_words(text):
+def get_words(text, do_lemmas=False):
     words_list = []
+    lem_word_list = []
     for sent in nltk.sent_tokenize(text):
         for word, pos in nltk.pos_tag(nltk.word_tokenize(sent)):
             if word not in string.punctuation:
             #if word is not re.search(r'\w', word):
+                lem_word_list.append(lmtzr.lemmatize(word, get_wordnet_pos(pos)))
                 words_list.append(word.lower())
 
-    return words_list
+    if do_lemmas == False:
+        return words_list
+    elif do_lemmas == True:
+        return lem_word_list
 
 def parse_where(question, story, sentences, given_sent, s_type):
     qgraph = question["dep"]
@@ -274,7 +339,7 @@ def get_answer(question, story):
     if question_words[0].lower() == "where":
         best_answer = parse_where(question, story, sentences, best_answer, s_type)
     
-    if question_words[0] == "Why":
+    if question_words[0].lower() == "why":
         #get a tokenized list of words from the question
         words = get_words(question["text"])
         #get last word of question sentence
@@ -598,6 +663,43 @@ def parse_test():
 
     #print(parse_where(q['text'], given_sent))
 
+def wnet_test():
+    driver = QABase()
+    q = driver.get_question("fables-06-16")
+    story = driver.get_story(q["sid"])    
+
+    sent_words = get_words(q["text"], True)
+    answer = ' '.join([word for word in sent_words]) 
+    
+    all_synset_ids = []
+
+    for k, v in verb_ids.items():
+        stories = (v["stories"])
+        stories = stories.replace("\'", '')
+        stories = stories.replace(".vgl", '')
+        stories = stories.replace(",", '')
+        stories = nltk.word_tokenize(stories)
+        for story in stories:
+            if q['sid'] == story:
+                all_synset_ids.append(k)
+
+    for synset_id in all_synset_ids:
+        for synset in wn.synset(synset_id).hyponyms():
+            all_synset_ids.append(synset.name())
+        # for sysnet in wn.synset(synset_id).hypernyms():
+        #     all_synset_ids.append(synset.name())
+
+    answer_set = set()
+
+    for synset_id in all_synset_ids:
+        synsets = wn.synset(synset_id)
+        synset_lemmas_list = synsets.lemma_names()
+        for lemma in synset_lemmas_list:
+            val = lemma.replace('_', " ")
+            if val in answer:
+                answer_set.add(synset_id.split(".", 1)[0]) 
+
+    print(answer_set)
 
 
 
@@ -623,7 +725,8 @@ def run_qa(evaluate=False):
 
 def main():
     #parse_test()
-    run_qa(evaluate=True)
+    run_qa(evaluate=False)
+    #wnet_test()
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     score_answers()

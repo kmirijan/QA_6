@@ -4,7 +4,7 @@ from nltk.parse import DependencyGraph
 from nltk.tree import Tree
 from collections import defaultdict
 
-HW = 7
+HW = 8
 DATA_DIR = "data/"
 QUESTION_FILE = "hw{}-questions.tsv".format(HW)
 ANSWER_FILE = "hw{}-answers.tsv".format(HW)
