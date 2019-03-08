@@ -4,7 +4,7 @@ from qa_engine.base import QABase
 from qa_engine.score_answers import main as score_answers
 from qa_engine.modified_score_answers import main as mod_score_answers
 from nltk.stem.wordnet import WordNetLemmatizer
-import string
+import os, string, json
 from nltk.stem import PorterStemmer
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
@@ -456,6 +456,46 @@ def get_nmod_dep(node, graph):
     #print(results)
     return results
 
+def load_coref_json(full_data = False):
+    """
+
+    Returns the coreferences of every story as a dictionary with the key 
+    being the story id, listed in COREF STORIES. The value of this dict is 
+    the coreferences of the story contained in another dictionary, where the key 
+    is the entity id, and the values are all mentions of that entity. It is probably
+    best to  print out the dictionaries and see what they look like. 
+    This is an intermediate step to use corefs in our answer selection.
+
+    Set full_data to True to receive full results of Stanford parser.
+
+
+    """
+
+    COREF_DICT = {}
+    
+    COREF_STORIES = ['blogs-01.json'      , 'blogs-02.json'      , 'blogs-03.json' , 
+                     'blogs-04.json'      , 'blogs-05.json'      , 'blogs-06.json' , 
+                     'fables-01.json'     , 'fables-02.json'     , 'fables-03.json', 
+                     'fables-04.json'     , 'fables-05.json'     , 'fables-06.json', 
+                     'mc500.train.0.json' , 'mc500.train.18.json', 'mc500.train.23.json', 
+                     'mc500.train.25.json', 'mc500.train.111.json'
+    ]
+
+    for temp_story in COREF_STORIES:
+        # print(temp_story[:-5])
+        with open(os.path.join('coref_json', temp_story)) as raw_json:
+            data        = raw_json.read()
+            story_key   = temp_story[:-5]
+            result_dict = json.loads(data)
+
+            if full_data == True:
+                COREF_DICT[story_key] = result_dict
+            else:
+                COREF_DICT[story_key] = result_dict['corefs']
+
+    return COREF_DICT
+
+
 def sent_test():
     driver = QABase()
     q = driver.get_question("mc500.train.23.17")
@@ -614,6 +654,7 @@ class QAEngine(QABase):
 
 
 def run_qa(evaluate=False):
+    load_coref_json()
     QA = QAEngine(evaluate=evaluate)
     QA.run()
     QA.save_answers()
