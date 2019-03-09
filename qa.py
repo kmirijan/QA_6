@@ -1,11 +1,14 @@
-import re, sys, nltk, operator
+import re, sys, nltk, operator, csv, string, os, json
 from nltk.corpus import wordnet
 from qa_engine.base import QABase
 from qa_engine.score_answers import main as score_answers
 from qa_engine.modified_score_answers import main as mod_score_answers
 from nltk.stem.wordnet import WordNetLemmatizer
-import string
 from nltk.stem import PorterStemmer
+from nltk.corpus import wordnet as wn
+from collections import defaultdict
+
+DATA_DIR = "./wordnet"
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
 lmtzr = WordNetLemmatizer()
@@ -21,6 +24,19 @@ GRAMMAR =   """
             """
 
 LOC_PP = set(["in", "from","on", "at", "along","under", "around","near","to","in front of"])
+
+def load_wordnet_ids(filename):
+    file = open(filename, 'r')
+    if "noun" in filename: type = "noun"
+    else: type = "verb"
+    csvreader = csv.DictReader(file, delimiter=",", quotechar='"')
+    word_ids = defaultdict()
+    for line in csvreader:
+        word_ids[line['synset_id']] = {'synset_offset': line['synset_offset'], 'story_'+type: line['story_'+type], 'stories': line['stories']}
+    return word_ids
+
+noun_ids = load_wordnet_ids("{}/{}".format(DATA_DIR, "Wordnet_nouns.csv"))
+verb_ids = load_wordnet_ids("{}/{}".format(DATA_DIR, "Wordnet_verbs.csv"))
 
 def get_sentences(text):
     sentences = nltk.sent_tokenize(text)
@@ -42,6 +58,50 @@ def get_wordnet_pos(treebank_tag):
     else:
         return wordnet.NOUN
 
+def get_wordnet_words(question):
+
+    sent_words = get_words(question["text"], True)
+    answer = ' '.join([word for word in sent_words])
+
+    all_synset_ids = []
+    wordnet_set = set()
+
+    for k, v in verb_ids.items():
+        stories = (v["stories"])
+        stories = stories.replace("\'", '')
+        stories = stories.replace(".vgl", '')
+        stories = stories.replace(",", '')
+        stories = nltk.word_tokenize(stories)
+        for story in stories:
+            if question['sid'] == story:
+                all_synset_ids.append(k)
+
+    for k, v in noun_ids.items():
+        stories = (v["stories"])
+        stories = stories.replace("\'", '')
+        stories = stories.replace(".vgl", '')
+        stories = stories.replace(",", '')
+        stories = nltk.word_tokenize(stories)
+        for story in stories:
+            if question['sid'] == story:
+                all_synset_ids.append(k)
+
+    for synset_id in all_synset_ids:
+        for synset in wn.synset(synset_id).hyponyms():
+            all_synset_ids.append(synset.name())
+        # for sysnet in wn.synset(synset_id).hypernyms():
+        #     all_synset_ids.append(synset.name())
+
+    for synset_id in all_synset_ids:
+        synsets = wn.synset(synset_id)
+        synset_lemmas_list = synsets.lemma_names()
+        for lemma in synset_lemmas_list:
+            val = lemma.replace('_', " ")
+            if val in answer:
+                wordnet_set.add(synset_id.split(".", 1)[0])
+
+    return wordnet_set
+
 def norm_question(question):
     quest_words = nltk.word_tokenize(question['text'])
     quest_words = nltk.pos_tag(quest_words)
@@ -50,8 +110,8 @@ def norm_question(question):
     del quest_words[0]
     del quest_words[-1]
 
-    root_question_words = set()
-    
+    root_question_words = get_wordnet_words(question)
+
     # Adds the root word to troot_question_words
     qgraph = question["dep"]
     qword = find_main(qgraph)['lemma']
@@ -143,7 +203,7 @@ def select_sentence(question, story, text, s_type):
             try:
                 ssubj = find_nsubj(story[s_type][sentences.index(answer[1])])
             except IndexError:
-                print("Index Error")
+                print("Index Error", question["qid"])
                 ssubj = None
 
             if(ssubj is not None):
@@ -173,15 +233,20 @@ def parse_chunk_where(question, best_answer):
 
     return best_answer
 
-def get_words(text):
+def get_words(text, do_lemmas=False):
     words_list = []
+    lem_word_list = []
     for sent in nltk.sent_tokenize(text):
         for word, pos in nltk.pos_tag(nltk.word_tokenize(sent)):
             if word not in string.punctuation:
             #if word is not re.search(r'\w', word):
+                lem_word_list.append(lmtzr.lemmatize(word, get_wordnet_pos(pos)))
                 words_list.append(word.lower())
 
-    return words_list
+    if do_lemmas == False:
+        return words_list
+    elif do_lemmas == True:
+        return lem_word_list
 
 def parse_where(question, story, sentences, given_sent, s_type):
     qgraph = question["dep"]
@@ -220,6 +285,51 @@ def parse_where(question, story, sentences, given_sent, s_type):
         else:
             return given_sent
 
+def parse_who(question, story, sentences, given_sent, s_type, c_type):
+    qgraph = question["dep"]
+    q_main_node = find_main(qgraph)
+    q_main_word = wordnet._morphy(q_main_node["lemma"], get_wordnet_pos(q_main_node["tag"]))
+    exclude = set(string.punctuation)
+
+    cand_sents = nltk.sent_tokenize(given_sent)
+    cand_subtrees = []
+    q_main_answer = ""
+    q_subj_answer = ""
+
+    for cand_sent in cand_sents:
+        gcon = story[c_type][sentences.index(cand_sent)]
+        for subtree in gcon.subtrees():
+            if subtree.label() == "NP":
+                tree_pos = subtree.pos()
+                for tree_pair in tree_pos:
+                    if lmtzr.lemmatize(tree_pair[0], get_wordnet_pos(tree_pair[1])) in q_main_word:
+                        cand_subtrees.append(subtree)
+
+        for tree in cand_subtrees:
+            for word_pair in tree.pos():
+                if lmtzr.lemmatize(word_pair[0], get_wordnet_pos(word_pair[1])) not in q_main_word and word_pair[0] not in exclude:
+                    q_main_answer = q_main_answer + " " + word_pair[0]
+
+    for cand_sent in cand_sents:
+        gcon = story[c_type][sentences.index(cand_sent)]
+        ggraph = story[s_type][sentences.index(cand_sent)]
+        all_nsubj = find_all_nsubj(ggraph)
+        for subtree in gcon.subtrees():
+            if subtree.label() == "NP" and subtree.height() < 4:
+                tree_pos = subtree.pos()
+                for nsubj in all_nsubj:
+                    if nsubj in tree_pos and len(tree_pos) > 1:
+                        for word_pair in tree_pos:
+                            q_subj_answer = q_subj_answer + " " + word_pair[0]
+
+
+    if q_main_answer != "":
+        return q_main_answer
+    elif q_subj_answer != "":
+        return q_subj_answer
+    else:
+        return given_sent
+
 
 def get_answer(question, story):
     """
@@ -255,15 +365,19 @@ def get_answer(question, story):
     if question['type'] == "Story" or question['type'] == "Story|Sch":
         text = story['text']
         s_type = 'story_dep'
+        c_type = 'story_par'
     elif question['type'] == "Sch" or question['type'] == "Sch|Story":
         text = story['sch']
         s_type = 'sch_dep'
+        c_type = 'sch_par'
     else:
         text = story['text']
         s_type = 'story_dep'
+        c_type = 'sch_par'
 
     sentences = nltk.sent_tokenize(text)
     best_answer = select_sentence(question, story,text, s_type)
+    default_answer = best_answer
 
     question_words = nltk.word_tokenize(question["text"])
 
@@ -273,12 +387,7 @@ def get_answer(question, story):
     if question_words[0].lower() == "where":
         best_answer = parse_where(question, story, sentences, best_answer, s_type)
     
-    if question_words[0] == "Why":
-        print(question['qid'])
-        print("Question: ", question["text"])
-        print("Possible sentences:")
-        print(sentences)
-
+    if question_words[0].lower() == "why":
         #get a tokenized list of words from the question
         words = get_words(question["text"])
         #get last word of question sentence
@@ -354,17 +463,18 @@ def get_answer(question, story):
         print("\n")
         
     if question_words[0].lower() == "who":
-        try:
-            sgraph = story[s_type][sentences.index(best_answer)]
-            sword  = find_main(sgraph)['lemma']
-            node   = find_node(qword, sgraph)
+        best_answer = parse_who(question, story, sentences, best_answer, s_type, c_type)
+        # try:
+        #     sgraph = story[s_type][sentences.index(best_answer)]
+        #     sword  = find_main(sgraph)['lemma']
+        #     node   = find_node(qword, sgraph)
 
-            if node != None:
-                best_answer = best_answer[:best_answer.index(node['word'])]
-            else:
-                pass
-        except:
-            pass
+        #     if node != None:
+        #         best_answer = best_answer[:best_answer.index(node['word'])]
+        #     else:
+        #         pass
+        # except:
+        #     pass
 
     if question_words[0].lower() == "what":
 
@@ -386,6 +496,11 @@ def get_answer(question, story):
                 pass
         except:
             pass
+
+
+    # if default_answer == best_answer:
+    #     for word in question_words:
+    #         best_answer = best_answer.replace(word, "")
     
     return best_answer
 
@@ -416,6 +531,13 @@ def find_nsubj(graph):
         if node['rel'] == 'nsubj':
             return node
     return None
+
+def find_all_nsubj(graph):
+    nodes = []
+    for node in graph.nodes.values():
+        if node['rel'] == 'nsubj':
+            nodes.append((node['lemma'], node['tag']))
+    return nodes
 
 def find_nmod(graph):
     for node in graph.nodes.values():
@@ -505,6 +627,46 @@ def get_nmod_dep(node, graph):
     #print(results)
     return results
 
+def load_coref_json(full_data = False):
+    """
+
+    Returns the coreferences of every story as a dictionary with the key 
+    being the story id, listed in COREF STORIES. The value of this dict is 
+    the coreferences of the story contained in another dictionary, where the key 
+    is the entity id, and the values are all mentions of that entity. It is probably
+    best to  print out the dictionaries and see what they look like. 
+    This is an intermediate step to use corefs in our answer selection.
+
+    Set full_data to True to receive full results of Stanford parser.
+
+
+    """
+
+    COREF_DICT = {}
+    
+    COREF_STORIES = ['blogs-01.json'      , 'blogs-02.json'      , 'blogs-03.json' , 
+                     'blogs-04.json'      , 'blogs-05.json'      , 'blogs-06.json' , 
+                     'fables-01.json'     , 'fables-02.json'     , 'fables-03.json', 
+                     'fables-04.json'     , 'fables-05.json'     , 'fables-06.json', 
+                     'mc500.train.0.json' , 'mc500.train.18.json', 'mc500.train.23.json', 
+                     'mc500.train.25.json', 'mc500.train.111.json'
+    ]
+
+    for temp_story in COREF_STORIES:
+        # print(temp_story[:-5])
+        with open(os.path.join('coref_json', temp_story)) as raw_json:
+            data        = raw_json.read()
+            story_key   = temp_story[:-5]
+            result_dict = json.loads(data)
+
+            if full_data == True:
+                COREF_DICT[story_key] = result_dict
+            else:
+                COREF_DICT[story_key] = result_dict['corefs']
+
+    return COREF_DICT
+
+
 def sent_test():
     driver = QABase()
     q = driver.get_question("mc500.train.23.17")
@@ -589,64 +751,123 @@ def sent_test():
     """
 def parse_test():
     driver = QABase()
-    q = driver.get_question("blogs-03-5")
+    q = driver.get_question("fables-06-7")
     story = driver.get_story(q["sid"])
 
     if q['type'] == "Story" or q['type'] == "Story|Sch":
         text = story['text']
         s_type = 'story_dep'
+        c_type = 'story_par'
     elif q['type'] == "Sch" or q['type'] == "Sch|Story":
         text = story['sch']
         s_type = 'sch_dep'
+        c_type = 'sch_par'
     sentences = nltk.sent_tokenize(text)
 
-    given_sent = 'Once, storm was occurring in Louisiana. Storm occurred.'
+    given_sent = 'A trapper spread some net in order to catch a big game.'
 
-    # qgraph = q["dep"]
-    # print("QUESTION:",q['text'])
-    # q_main_node = find_main(qgraph)
-    # q_main_word = wordnet._morphy(q_main_node["lemma"], get_wordnet_pos(q_main_node["tag"]))
-    # #print("Q_MAIN_NODE:", q_main_node)
+    qgraph = q["dep"]
+    print("QUESTION:",q['text'])
+    q_main_node = find_main(qgraph)
+    q_main_word = wordnet._morphy(q_main_node["lemma"], get_wordnet_pos(q_main_node["tag"]))
+    print("Q_MAIN_WORD:", q_main_word)
+    exclude = set(string.punctuation)
+    cand_sents = nltk.sent_tokenize(given_sent)
+    cand_subtrees = []
+    q_main_answer = ""
+    q_subj_answer = ""
+    for cand_sent in cand_sents:
+        gcon = story[c_type][sentences.index(cand_sent)]
+        for subtree in gcon.subtrees():
+            if subtree.label() == "NP":
+                tree_pos = subtree.pos()
+                for tree_pair in tree_pos:
+                    if lmtzr.lemmatize(tree_pair[0], get_wordnet_pos(tree_pair[1])) in q_main_word:
+                        cand_subtrees.append(subtree)
 
-    # cand_sents = nltk.sent_tokenize(given_sent)
-    # for cand_sent in cand_sents:
-    #     ggraph = story[s_type][sentences.index(cand_sent)]
-    #     g_main_node = find_main(ggraph)
-    #     print("CAND_SENT",cand_sent)
-    #     g_main_word = wordnet._morphy(g_main_node["lemma"], get_wordnet_pos(g_main_node["tag"]))
-    #     nmod_deps = get_nmod_dep(g_main_node, ggraph)
-    #     best_answer = ""
-    #     chunk_ans = ""
-    #     dep_ans =""
-    #     print(g_main_word, q_main_word)
-    #     if nmod_deps and g_main_word == q_main_word:
-    #         for dep in nmod_deps:
-    #             result = []
-    #             result.append((dep["address"], dep["word"]))
-    #             all_deps = get_nmod_dependents(dep, ggraph)
-    #             for item in all_deps:
-    #                 result.append((item["address"], item['word']))
-    #             result = sorted(result)
-    #             answer = ' '.join([word_pair[1] for word_pair in result])
-    #             dep_ans = dep_ans + " " + answer
-    #             print("DEP_BEST:",answer)
-    #     else:
-    #         answer = parse_chunk_where(q['text'], given_sent)
-    #         chunk_ans = chunk_ans + " " + answer
-    #         print("CHUNK_BEST:", answer)
+        for tree in cand_subtrees:
+            print(tree)
+            for word_pair in tree.pos():
+                if lmtzr.lemmatize(word_pair[0], get_wordnet_pos(word_pair[1])) not in q_main_word and word_pair[0] not in exclude:
+                    q_main_answer = answer + " " + word_pair[0]
 
-    #     if dep_ans != "":
-    #         print(dep_ans)
-    #     elif chunk_ans != "":
-    #         print(chunk_ans)
-    #     else:
-    #         print(given_sent)
-
-    print(parse_where(q, story, sentences, given_sent, s_type))
+    for cand_sent in cand_sents:
+        gcon = story[c_type][sentences.index(cand_sent)]
+        ggraph = story[s_type][sentences.index(cand_sent)]
+        all_nsubj = find_all_nsubj(ggraph)
+        for subtree in gcon.subtrees():
+            if subtree.label() == "NP" and subtree.height() < 4:
+                tree_pos = subtree.pos()
+                for nsubj in all_nsubj:
+                    if nsubj in tree_pos and len(tree_pos) > 1:
+                        for word_pair in tree_pos:
+                            q_subj_answer = q_subj_answer + " " + word_pair[0]
 
 
-    #print(parse_where(q['text'], given_sent))
+    if q_main_answer != "":
+        print(q_main_answer)
+    elif q_subj_answer != "":
+        print(q_subj_answer)
+    else:
+        print(given_sent)
 
+        # if nmod_deps and g_main_word == q_main_word:
+        #     for dep in nmod_deps:
+        #         result = []
+        #         result.append((dep["address"], dep["word"]))
+        #         all_deps = get_nmod_dependents(dep, ggraph)
+        #         for item in all_deps:
+        #             result.append((item["address"], item['word']))
+        #         result = sorted(result)
+        #         answer = ' '.join([word_pair[1] for word_pair in result])
+        #         dep_ans = dep_ans + " " + answer
+        #         print("DEP_BEST:",answer)
+
+        # if dep_ans != "":
+        #     print(dep_ans)
+        # else:
+        #     print(given_sent)
+
+    #print(parse_where(q, story, sentences, given_sent, s_type))
+
+
+def wnet_test():
+    driver = QABase()
+    q = driver.get_question("fables-06-16")
+    story = driver.get_story(q["sid"])    
+
+    sent_words = get_words(q["text"], True)
+    answer = ' '.join([word for word in sent_words]) 
+    
+    all_synset_ids = []
+
+    for k, v in verb_ids.items():
+        stories = (v["stories"])
+        stories = stories.replace("\'", '')
+        stories = stories.replace(".vgl", '')
+        stories = stories.replace(",", '')
+        stories = nltk.word_tokenize(stories)
+        for story in stories:
+            if q['sid'] == story:
+                all_synset_ids.append(k)
+
+    for synset_id in all_synset_ids:
+        for synset in wn.synset(synset_id).hyponyms():
+            all_synset_ids.append(synset.name())
+        # for sysnet in wn.synset(synset_id).hypernyms():
+        #     all_synset_ids.append(synset.name())
+
+    answer_set = set()
+
+    for synset_id in all_synset_ids:
+        synsets = wn.synset(synset_id)
+        synset_lemmas_list = synsets.lemma_names()
+        for lemma in synset_lemmas_list:
+            val = lemma.replace('_', " ")
+            if val in answer:
+                answer_set.add(synset_id.split(".", 1)[0]) 
+
+    print(answer_set)
 
 
 
@@ -663,6 +884,7 @@ class QAEngine(QABase):
 
 
 def run_qa(evaluate=False):
+    load_coref_json()
     QA = QAEngine(evaluate=evaluate)
     QA.run()
     QA.save_answers()
@@ -673,6 +895,10 @@ def run_qa(evaluate=False):
 def main():
     #parse_test()
     run_qa(evaluate=False)
+<<<<<<< HEAD
+=======
+    #wnet_test()
+>>>>>>> c57eb071b35cb22fbb407e5e23c82572028a519a
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
     #score_answers()
