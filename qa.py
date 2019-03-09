@@ -27,7 +27,7 @@ def get_sentences(text):
     sentences = [nltk.word_tokenize(sent) for sent in sentences]
     sentences = [nltk.pos_tag(sent) for sent in sentences]
     
-    return sentences    
+    return sentences
 
 def get_wordnet_pos(treebank_tag):
 
@@ -263,7 +263,6 @@ def get_answer(question, story):
         s_type = 'story_dep'
 
     sentences = nltk.sent_tokenize(text)
-
     best_answer = select_sentence(question, story,text, s_type)
 
     question_words = nltk.word_tokenize(question["text"])
@@ -275,6 +274,11 @@ def get_answer(question, story):
         best_answer = parse_where(question, story, sentences, best_answer, s_type)
     
     if question_words[0] == "Why":
+        print(question['qid'])
+        print("Question: ", question["text"])
+        print("Possible sentences:")
+        print(sentences)
+
         #get a tokenized list of words from the question
         words = get_words(question["text"])
         #get last word of question sentence
@@ -282,20 +286,62 @@ def get_answer(question, story):
         candidate_sent = get_sentences(best_answer)
         best_answer1 = ""
         best_answer2 = ""
+        """
+        print("candidate_sent")
+        print(candidate_sent)
+        newsentences = nltk.sent_tokenize(best_answer)
+        print("Newsentences")
+        print(newsentences)
+        #for sent in candidate_sent:
+        for sent in newsentences:
+            count = 0
+            print("---",sent)
+            for index,word in enumerate(nltk.word_tokenize(sent)):
+                count += len(word)
+                if word == "because":
+                    count += index
+                    print("---FOUND BECAUSE---")
+                    print("wanted sentence:", sent)
+                    print("count:",count)
+                    print(word)
+                    sent_split = sent[count:]
+                    print("sent_split")
+                    print(sent_split)        
+                    best_answer = sent_split
+                    return best_answer
+                elif stemmer.stem(word.lower()) == stemmer.stem(last_word):
+
+                        print("---OTHER OPTION---")
+                        print("wanted sentence:", sent)
+                        count +=index - len(word)
+                        print("count:", count)
+                        print(word)
+                        sent_split = sent[count:]
+                        print("sent_split:")
+                        print(sent_split)
+                        best_answer = sent_split
+        
+                else:
+                    best_answer = best_answer
+        """
+        print(candidate_sent)
         for sent in candidate_sent:
             for index,pair in enumerate(sent):
                 #if there are two sentences returned, typically always want 
                 #the sentence returned after "because"
                 if pair[0] == "because":
+                    print("found because")
                     sent_split = sent[index:]
                     best_answer1 = ' '.join([word_pair[0] for word_pair in sent_split])
-                    break
+                    print("Best_answer1:", best_answer1)
+                    best_answer = best_answer1
+                    return best_answer
                 #get words after the last word in the question
                 else:
                     if stemmer.stem((pair[0]).lower()) == stemmer.stem(last_word):
                         val = index+1
                         sent_split = sent[val:]
-                        best_answer = ' '.join([word_pair[0] for word_pair in sent_split if word_pair[0] not in string.punctuation])
+                        best_answer2 = ' '.join([word_pair[0] for word_pair in sent_split if word_pair[0] not in string.punctuation])
         if best_answer1 != "":
             best_answer = best_answer1
         elif best_answer2 != "":
@@ -303,7 +349,10 @@ def get_answer(question, story):
         else:
             best_answer = best_answer
 
-    
+        print("Best answer")
+        print(best_answer)
+        print("\n")
+        
     if question_words[0].lower() == "who":
         try:
             sgraph = story[s_type][sentences.index(best_answer)]
@@ -623,11 +672,11 @@ def run_qa(evaluate=False):
 
 def main():
     #parse_test()
-    run_qa(evaluate=True)
+    run_qa(evaluate=False)
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-    score_answers()
-    #mod_score_answers(print_story=False)
+    #score_answers()
+    mod_score_answers(print_story=False)
 
 if __name__ == "__main__":
     main()
