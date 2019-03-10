@@ -25,8 +25,8 @@ GRAMMAR =   """
             N: {<PRP>|<NN.*>}
             V: {<V.*>}
             ADJ: {<JJ.*>}
-            NP: {<DT>? <ADJ>* <N>+}
-            PP: {<IN> <NP>}
+            NP: {<DT>? <ADJ>* <N>+ <V.*>+ ((<ADJ> <CC> <V>)|<NN.*>|(<RP>? <PP>))*}
+            PP: {<IN> <DT>? (<NP>|<NNP>)}
             VP: {<TO>? <V> (<NP>|<PP>)*}
             """
 
@@ -418,6 +418,23 @@ def parse_why(question, story, sentences, best_answer, s_type):
     return best_answer 
 
 
+def parse_what(question, story, sentences, best_answer, s_type):
+    print("Question: ", question["text"])
+    boqw, qword = norm_question(question)
+    print("qword:", qword)
+    print("Possible sentences")
+
+    candidate_sent = get_sentences(best_answer)
+    print(candidate_sent) 
+    chunker = nltk.RegexpParser(GRAMMAR)
+    locations = find_candidates(candidate_sent, chunker, qword)
+    for loc in locations:
+        print(loc)
+        print(" ".join([token[0] for token in loc.leaves()]))
+    
+    
+    print("\n")
+    return best_answer
 
 def get_answer(question, story):
     """
@@ -491,9 +508,17 @@ def get_answer(question, story):
         #         pass
         # except:
         #     pass
-
     if question_words[0].lower() == "what":
-
+        question_phrase = question_words[0] + " " + question_words[1]
+        strdid = "What did"
+        strwas = "What was"
+        if question_phrase not in strdid or question_phrase not in strwas:
+            print("Did not found did or was")     
+            best_answer = parse_what(question, story, sentences, best_answer, s_type)
+        else:
+            return best_answer
+            
+        """
         qgraph       = question["dep"]
         q_relations  = [[node['address'], node['word'], node['rel']] for node in qgraph.nodes.values() if node['rel'] != None]
         q_relations  = sorted(q_relations, key=lambda tup: tup[0])
@@ -512,7 +537,7 @@ def get_answer(question, story):
                 pass
         except:
             pass
-
+        """
 
     # if default_answer == best_answer:
     #     for word in question_words:
@@ -571,11 +596,21 @@ def find_node(word, graph):
 def pp_filter(subtree):
     return subtree.label() == "PP"
 
-def is_location(prep):
-    return prep[0] in LOC_PP
+def verb_filter(subtree):
+    return subtree.label() == "VP"
+
+def is_location(prep, qword):
+    print("is location")
+    print("prep")
+    print(prep)
+    verbset = [qword]
+    return prep[0] in verbset
+
+def noun_filter(subtree):
+    return subtree.label() == "NP"
 
 
-def find_locations(tree):
+def find_locations(tree, qword):
     # Starting at the root of the tree
     # Traverse each node and get the subtree underneath it
     # Filter out any subtrees who's label is not a PP
@@ -587,10 +622,27 @@ def find_locations(tree):
     # How can we make this function more robust?
     # Make sure the crow/subj is to the left
     locations = []
-    for subtree in tree.subtrees(filter=pp_filter):
-        if is_location(subtree[0]):
-            locations.append(subtree)
+    #for subtree in tree.subtrees(filter=pp_filter):
+    print("In find_locations")
+    for subtree in tree.subtrees(filter=noun_filter): 
+        print("subtree")
+        print(subtree)
+        for sub in subtree:
+            locations.append(sub)
 
+#        locations.append(subtree)
+#        if is_location(subtree[0], qword):
+#            locations.append(subtree)
+        #if qword in subtree[0]:
+        #    print("correct subtree")
+        #    print(subtree)
+        #    print("right vphrase")
+        #    print(subtree[0])
+    #  if is_location(subtree[0]):
+     #       locations.append(subtree)
+
+    print("locations")
+    print(locations)
     return locations
 
 def set_best_answer(best_answer, answer):
@@ -600,12 +652,15 @@ def set_best_answer(best_answer, answer):
         best_answer = best_answer + ' ' + answer[1]
     return best_answer
 
-def find_candidates(sentences, chunker):
+def find_candidates(sentences, chunker, qword):
+    print("find candidates")
     candidates = []
     for sent in sentences:
         tree = chunker.parse(sent)
-        locations = find_locations(tree)
-        candidates.extend(locations)
+        print(tree)
+
+        locations = find_locations(tree, qword)
+        #candidates.extend(locations)
 
     return candidates
 
@@ -914,7 +969,7 @@ def main():
     #wnet_test()
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-    #score_answers()
+    score_answers()
     mod_score_answers(print_story=False)
 
 if __name__ == "__main__":
