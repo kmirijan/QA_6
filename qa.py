@@ -25,10 +25,19 @@ GRAMMAR =   """
             N: {<PRP>|<NN.*>}
             V: {<V.*>}
             ADJ: {<JJ.*>}
-            NP: {<DT>? <ADJ>* <N>+ <V.*>+ ((<ADJ> <CC> <V>)|<NN.*>|(<RP>? <PP>))*}
-            PP: {<IN> <DT>? (<NP>|<NNP>)}
+            NP: {<DT>? <ADJ>* <N>+}
+            PP: {<IN> <NP>}
             VP: {<TO>? <V> (<NP>|<PP>)*}
             """
+
+GRAMMARVERB =   """
+                N: {<PRP>|<NN.*>}
+                V: {<V.*>}
+                ADJ: {<JJ.*>}
+                NP: {<DT>? <ADJ>* <N>+ <V.*>+ ((<ADJ> <CC> <V>)|<NN.*>|(<RP>? <PP>))*}
+                PP: {<IN> <DT>? (<NP>|<NNP>)}
+                VP: {<TO>? <V> (<NP>|<PP>)*}
+                """
 
 LOC_PP = set(["in", "from","on", "at", "along","under", "around","near","to","in front of"])
 
@@ -418,7 +427,7 @@ def parse_why(question, story, sentences, best_answer, s_type):
     return best_answer 
 
 
-def parse_what(question, story, sentences, best_answer, s_type):
+def parse_what_verb(question, story, sentences, best_answer, s_type):
     print("Question: ", question["text"])
     boqw, qword = norm_question(question)
     print("qword:", qword)
@@ -426,8 +435,8 @@ def parse_what(question, story, sentences, best_answer, s_type):
 
     candidate_sent = get_sentences(best_answer)
     print(candidate_sent) 
-    chunker = nltk.RegexpParser(GRAMMAR)
-    locations = find_candidates(candidate_sent, chunker, qword)
+    chunker = nltk.RegexpParser(GRAMMARVERB)
+    locations = find_candidates_verb(candidate_sent, chunker, qword)
     for loc in locations:
         print(loc)
         print(" ".join([token[0] for token in loc.leaves()]))
@@ -510,7 +519,7 @@ def get_answer(question, story):
         strwas = "What was"
         if question_phrase not in strdid or question_phrase not in strwas:
             print("Did not found did or was")     
-            best_answer = parse_what(question, story, sentences, best_answer, s_type)
+            best_answer = parse_what_verb(question, story, sentences, best_answer, s_type)
         else:
             return best_answer
             
@@ -646,7 +655,10 @@ def pp_filter(subtree):
 def verb_filter(subtree):
     return subtree.label() == "VP"
 
-def is_location(prep, qword):
+def is_location(prep):
+    return prep[0] in LOC_PP 
+
+def is_location_verb(prep, qword):
     print("is location")
     print("prep")
     print(prep)
@@ -656,8 +668,28 @@ def is_location(prep, qword):
 def noun_filter(subtree):
     return subtree.label() == "NP"
 
+def find_locations(tree):
+    print("find locations")
+    # Starting at the root of the tree
+    # Traverse each node and get the subtree underneath it
+    # Filter out any subtrees who's label is not a PP
+    # Then check to see if the first child (it must be a preposition) is in
+    # our set of locative markers
+    # If it is then add it to our list of candidate locations
 
-def find_locations(tree, qword):
+    # How do we modify this to return only the NP: add [1] to subtree!
+    # How can we make this function more robust?
+    # Make sure the crow/subj is to the left
+    locations = []
+    for subtree in tree.subtrees(filter=pp_filter):
+        print(subtree)
+        if is_location(subtree[0]):
+            locations.append(subtree)
+
+    return locations
+
+
+def find_locations_verb(tree, qword):
     # Starting at the root of the tree
     # Traverse each node and get the subtree underneath it
     # Filter out any subtrees who's label is not a PP
@@ -699,14 +731,23 @@ def set_best_answer(best_answer, answer):
         best_answer = best_answer + ' ' + answer[1]
     return best_answer
 
-def find_candidates(sentences, chunker, qword):
+def find_candidates(sentences, chunker):
+    candidates = []
+    for sent in sentences:
+        tree = chunker.parse(sent)
+        locations = find_locations(tree)
+        candidates.extend(locations)
+
+    return candidates
+
+def find_candidates_verb(sentences, chunker, qword):
     print("find candidates")
     candidates = []
     for sent in sentences:
         tree = chunker.parse(sent)
         print(tree)
 
-        locations = find_locations(tree, qword)
+        locations = find_locations_verb(tree, qword)
         #candidates.extend(locations)
 
     return candidates
