@@ -1,0 +1,8 @@
+Khachatur Mirijanyan
+Katelyn Suhr
+Roman Sul
+
+Summary:
+
+Individual Contribution:
+    Roman set up the Stanford Core NLP parser to create the coreferences dictionaries for all stories. He intended to use this to improve sentence and answer selection, but did not get to that part of the project. He tried improving answer selection for "what did" questions but wasn't able to improve over Khach's version. He also tried improving sentence selection by adding in wordNet synonyms, but was unable to properly implement it.
