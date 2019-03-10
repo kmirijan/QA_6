@@ -7,12 +7,19 @@ from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.stem import PorterStemmer
 from nltk.corpus import wordnet as wn
 from collections import defaultdict
+from word2vec_extractor import Word2vecExtractor
+from sklearn.metrics.pairwise import cosine_similarity
+import gensim
+import numpy as np
 
 DATA_DIR = "./wordnet"
 
 stopwords = set(nltk.corpus.stopwords.words("english"))
 lmtzr = WordNetLemmatizer()
 stemmer = PorterStemmer()
+glove_w2v_file = "data/glove-w2v.txt"
+W2vecextractor = Word2vecExtractor(glove_w2v_file)
+
 
 GRAMMAR =   """
             N: {<PRP>|<NN.*>}
@@ -43,7 +50,7 @@ def get_sentences(text):
     sentences = [nltk.word_tokenize(sent) for sent in sentences]
     sentences = [nltk.pos_tag(sent) for sent in sentences]
     
-    return sentences    
+    return sentences
 
 def get_wordnet_pos(treebank_tag):
 
@@ -59,13 +66,11 @@ def get_wordnet_pos(treebank_tag):
         return wordnet.NOUN
 
 def get_wordnet_words(question):
-
     sent_words = get_words(question["text"], True)
     answer = ' '.join([word for word in sent_words])
 
     all_synset_ids = []
     wordnet_set = set()
-
     for k, v in verb_ids.items():
         stories = (v["stories"])
         stories = stories.replace("\'", '')
@@ -96,10 +101,13 @@ def get_wordnet_words(question):
         synsets = wn.synset(synset_id)
         synset_lemmas_list = synsets.lemma_names()
         for lemma in synset_lemmas_list:
+#            print(lemma)
             val = lemma.replace('_', " ")
+            #print("val:", val)
             if val in answer:
+                #print("answer:", answer)
                 wordnet_set.add(synset_id.split(".", 1)[0])
-
+                
     return wordnet_set
 
 def norm_question(question):
@@ -111,6 +119,7 @@ def norm_question(question):
     del quest_words[-1]
 
     root_question_words = get_wordnet_words(question)
+    
 
     # Adds the root word to troot_question_words
     qgraph = question["dep"]
@@ -133,7 +142,7 @@ def norm_question(question):
             [root_question_words.add(stem) for stem in stems]
             if word_pair[1] == 'NNP':
                 root_question_words.add(word)
-
+    
     return root_question_words, qword
 
 def norm_text(sent):
@@ -179,21 +188,17 @@ def select_sentence(question, story, text, s_type):
     qsubj = find_nsubj(qgraph)
     if qsubj is not None:
         qsubj = qsubj["lemma"]
-    # print(question['text'])
-    # print(boqw)
-    # print(qword)
-
+    
     sentences = nltk.sent_tokenize(text)
     for sent in sentences:
         # A list of all the word tokens in the sentence
         bosw = norm_text(sent)
-        
         # Count the # of overlapping words between the Q and the A
         # & is the set intersection operator
         overlap = len(boqw & bosw)
-        
         answers.append((overlap, sent, bosw))
     answers = sorted(answers, key=operator.itemgetter(0), reverse=True)
+
     default_answer = (answers[0])[1]
     max_overlap = (answers[0])[0]
     best_answer = ''
@@ -219,6 +224,48 @@ def select_sentence(question, story, text, s_type):
         best_answer = default_answer
 
     return best_answer
+
+def baseline_word2vec(question, sentences, stopwords, W2vecextractor):
+    q_feat = W2vecextractor.sent2vec(question)
+    candidate_answers = []
+
+    for sent in sentences:
+       a_feat = W2vecextractor.sent2vec(sent)
+       dist = cosine_similarity(q_feat, a_feat)[0]
+       candidate_answers.append((dist, sent))
+       #print("distance: "+str(dist)+"\t sent: "+sent)
+
+    answers = sorted(candidate_answers, key=operator.itemgetter(0), reverse=True)
+
+    print(answers)
+
+    best_answer = (answers[0])[1]
+    return best_answer
+
+
+def baseline_word2vec_verb(question, sentences, stopwords, W2vecextractor, q_verb, sgraphs):
+    q_feat = W2vecextractor.word2v(q_verb)
+    candidate_answers = []
+    print("ROOT of question: "+str(q_verb))
+
+    for i in range(0, len(sentences)):
+        sent = sentences[i]
+        s_verb = find_main(sgraphs[i])['word']
+        print("ROOT of sentence: "+str(s_verb))
+        a_feat = W2vecextractor.word2v(s_verb)
+
+        dist = cosine_similarity([q_feat], [a_feat])
+        candidate_answers.append((dist[0], sent))
+
+
+    answers = sorted(candidate_answers, key=operator.itemgetter(0), reverse=True)
+
+    print(answers)
+
+    best_answer = (answers[0])[1]
+    return best_answer
+
+
 
 def parse_yes_no(question, best_answer):
     best_answer = 'yes'
@@ -331,6 +378,47 @@ def parse_who(question, story, sentences, given_sent, s_type, c_type):
         return given_sent
 
 
+def parse_why(question, story, sentences, best_answer, s_type):
+    
+    #get a tokenized list of words from the question
+    words = get_words(question["text"])
+    #get last word of question sentence
+    last_word = words[-1]
+    candidate_sent = get_sentences(best_answer)
+    best_answer1 = ""
+    best_answer2 = ""
+    print("Question:", question["text"])
+    print(candidate_sent)
+    for sent in candidate_sent:
+        for index,pair in enumerate(sent):
+            #if there are two sentences returned, typically always want 
+            #the sentence returned after "because"
+            if pair[0] == "because":
+                print("found because")
+                sent_split = sent[index:]
+                best_answer1 = ' '.join([word_pair[0] for word_pair in sent_split])
+                print("Best_answer1:", best_answer1)
+                best_answer = best_answer1
+                return best_answer
+                #get words after the last word in the question
+            else:
+                if stemmer.stem((pair[0]).lower()) == stemmer.stem(last_word):
+                    val = index+1
+                    sent_split = sent[val:]
+                    best_answer2 = ' '.join([word_pair[0] for word_pair in sent_split if word_pair[0] not in string.punctuation])
+    if best_answer1 != "":
+        best_answer = best_answer1
+    elif best_answer2 != "":
+        best_answer = best_answer2
+    else:
+        best_answer = best_answer
+
+    print("Best answer")
+    print(best_answer)
+    return best_answer 
+
+
+
 def get_answer(question, story):
     """
     :param question: dict
@@ -372,7 +460,6 @@ def get_answer(question, story):
         c_type = 'sch_par'
 
     sentences = nltk.sent_tokenize(text)
-
     best_answer = select_sentence(question, story,text, s_type)
     default_answer = best_answer
 
@@ -385,35 +472,8 @@ def get_answer(question, story):
         best_answer = parse_where(question, story, sentences, best_answer, s_type)
     
     if question_words[0].lower() == "why":
-        #get a tokenized list of words from the question
-        words = get_words(question["text"])
-        #get last word of question sentence
-        last_word = words[-1]
-        candidate_sent = get_sentences(best_answer)
-        best_answer1 = ""
-        best_answer2 = ""
-        for sent in candidate_sent:
-            for index,pair in enumerate(sent):
-                #if there are two sentences returned, typically always want 
-                #the sentence returned after "because"
-                if pair[0] == "because":
-                    sent_split = sent[index:]
-                    best_answer1 = ' '.join([word_pair[0] for word_pair in sent_split])
-                    break
-                #get words after the last word in the question
-                else:
-                    if stemmer.stem((pair[0]).lower()) == stemmer.stem(last_word):
-                        val = index+1
-                        sent_split = sent[val:]
-                        best_answer = ' '.join([word_pair[0] for word_pair in sent_split if word_pair[0] not in string.punctuation])
-        if best_answer1 != "":
-            best_answer = best_answer1
-        elif best_answer2 != "":
-            best_answer = best_answer2
-        else:
-            best_answer = best_answer
-
-    
+        best_answer = parse_why(question, story, sentences,  best_answer, s_type)
+        
     if question_words[0].lower() == "who":
         best_answer = parse_who(question, story, sentences, best_answer, s_type, c_type)
         # try:
@@ -703,7 +763,7 @@ def sent_test():
     for sent in sentences:
         # A list of all the word tokens in the sentence
         bosw = norm_text(sent)
-        
+        bows.append('strike')        
         # Count the # of overlapping words between the Q and the A
         # & is the set intersection operator
         overlap = len(boqw & bosw)
@@ -931,8 +991,8 @@ def main():
     #wnet_test()
     # You can uncomment this next line to evaluate your
     # answers, or you can run score_answers.py
-    score_answers()
-    #mod_score_answers(print_story=False)
+    #score_answers()
+    mod_score_answers(print_story=False)
 
 if __name__ == "__main__":
     main()
